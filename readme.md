@@ -1,0 +1,1 @@
+# Import-OVResources.ps1 is a PowerShell script that leverages HPE OneView PowerShell library and Excel to automate configuration of OneView OVResources
