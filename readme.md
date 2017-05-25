@@ -18,7 +18,7 @@ You will use CSV files as input for the Import script.
 
 ## Import-OVResources.PS1 
 
-Import-OVResources.ps1 is a PowerShell script that configure OV resources based on CSV files including:
+Import-OVResources.ps1 is a PowerShell script that configures OV resources based on CSV files including:
    * Address Pool
    * Ethernet newtorks
    * Network set
@@ -133,6 +133,7 @@ Import-OVResources.ps1 is a PowerShell script that configure OV resources based 
 
 ```
 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 ## Export-OVResources.PS1 
