@@ -72,7 +72,9 @@
 ##  
 ##                         - Add AuthLoginDomain to Connect-HPOVMgmt  
 ##                         -Add routine to check update LIG and uplinkset when adding network to networkset if the latter is already used in server profile 
-##   Version : 3.1
+##
+##     June 2017 - v3.2    - Change Wait-HPOVTaskComplete to Wait-HPOVTaskStart for profile creation
+##   Version : 3.2
 ##
 ##
 ## -------------------------------------------------------------------------------------------------------------
@@ -147,6 +149,9 @@
 
   .PARAMETER OVEnclosureCSV 
     Path to the CSV file containing Enclosure definition
+  
+  .PARAMETER OVServerCSV 
+    Path to the CSV file containing DL servers definition
 
   .PARAMETER OVProfileCSV 
     Path to the CSV file containing Server Profile definition
@@ -189,7 +194,7 @@
 
   .Notes
     NAME:  Import-OVResources
-    LASTEDIT: 01/11/2017
+    LASTEDIT: 06/01/2017
     KEYWORDS: OV  Export
    
   .Link
@@ -201,37 +206,37 @@
 ## -------------------------------------------------------------------------------------------------------------
 
 
-Param ( [string]$OVApplianceIP="10.254.13.201", 
-        [string]$OVAdminName="Administrator", 
-        [string]$OVAdminPassword="P@ssword1",
-        [string]$OneViewModule =  "HPONeView.300" ,                                      # D:\OV30-Scripts\posh-hponeview-master\HPOneView.300.psd1",
-        [string]$OVAuthDomain  = "local"
+Param ( [string]$OVApplianceIP    = "", 
+        [string]$OVAdminName      = "", 
+        [string]$OVAdminPassword  = "",
+        [string]$OneViewModule    =  "HPONeView.300" ,                                      
+        [string]$OVAuthDomain     = "local",
 
-        [string]$OVEthernetNetworksCSV ="",                                               #D:\Oneview Scripts\OV-EthernetNetworks.csv",
-        [string]$OVFCNetworksCSV ="",                                                     #D:\Oneview Scripts\OV-FCNetworks.csv",
+        [string]$OVEthernetNetworksCSV ="",                                               
+        [string]$OVFCNetworksCSV ="",                                                     
         
-        [string]$OVLogicalInterConnectGroupCSV ="",                                       #D:\Oneview Scripts\OV-LogicalInterConnectGroup.csv",
-        [string]$OVUpLinkSetCSV ="",                                                        #c:\OV30-Scripts\ex-upl.csv",                                                      
-        [string]$OVEnclosureGroupCSV = "" ,                                                 #D:\Oneview Scripts\OV-EnclosureGroup.csv",
-        [string]$OVEnclosureCSV ="",                                                      #D:\Oneview Scripts\OV-Enclosure.csv",
-        [string]$OVLogicalEnclosureCSV ="",                                                      #D:\Oneview Scripts\OV-LogicalEnclosure.csv",
+        [string]$OVLogicalInterConnectGroupCSV ="",                                       
+        [string]$OVUpLinkSetCSV ="",                                                                                                         
+        [string]$OVEnclosureGroupCSV = "" ,                                                 
+        [string]$OVEnclosureCSV ="",                                                      
+        [string]$OVLogicalEnclosureCSV ="",                                                      
         
         [string]$OVServerCSV = "",
         
         
-        [string]$OVProfileCSV = "" ,                                                        #c:\OV30-Scripts\c7000\c7000-profile.csv" ,                                                      #D:\Oneview Scripts\OV-Profile.csv",
-        [string]$OVProfileTemplateCSV = "",                                                 #c:\OV30-Scripts\c7000-export\ProfileTemplate.csv",
-        [string]$OVProfileConnectionCSV = "",                                               #"c:\OV30-Scripts\c7000\ProfileConnection.csv",   
-        [string]$OVProfileLOCALStorageCSV = "",                                             # "c:\OV30-Scripts\c7000\C7000-ProfileLOCALStorage.csv",  
-        [string]$OVProfileSANStorageCSV = "",                                               #c:\OV30-Scripts\c7000\C7000-ProfileSANStorage.csv",
+        [string]$OVProfileCSV = "" ,                                                        
+        [string]$OVProfileTemplateCSV = "",                                                 
+        [string]$OVProfileConnectionCSV = "",                                               
+        [string]$OVProfileLOCALStorageCSV = "",                                              
+        [string]$OVProfileSANStorageCSV = "",                                               
 
         [string]$OVProfileFROMTemplateCSV = "",
     
 
-        [string]$OVSanManagerCSV ="",                                                     #D:\Oneview Scripts\OV-FCNetworks.csv",
+        [string]$OVSanManagerCSV ="",                                                    
         [string]$OVStorageSystemCSV ="",  
                                                         
-        [string]$OVStorageVolumeTemplateCSV= "",                                            #c:\ov30-scripts\synergy\StorageVolumeTemplate.csv",
+        [string]$OVStorageVolumeTemplateCSV= "",                                            
         [string]$OVStorageVolumeCSV= "",
 
         [string]$OVAddressPoolCSV = "",
@@ -2688,7 +2693,8 @@ Function Create-ProfileorTemplate {
                             $ServerObj | Stop-HPOVServer -Force -confirm:$False | Wait-HPOVTaskComplete
                         }
                         
-                        Invoke-Expression $ProfileCmds | Wait-HPOVTaskComplete | FL
+                        # Invoke-Expression $ProfileCmds | Wait-HPOVTaskComplete | FL
+                        Invoke-Expression $ProfileCmds | Wait-HPOVTaskAccepted | format-list
                     }
                     else    # Create profile template here
                     {
@@ -2700,7 +2706,8 @@ Function Create-ProfileorTemplate {
                             $ProfileTemplateCmds   += $ConnectionsCmds + $LOCALStorageCmds + $SANStorageCmds
                             $ProfileTemplateCmds   +=  $FWCmds  + $BIOSettingsCmds 
                         
-                        Invoke-Expression $ProfileTemplateCmds | Wait-HPOVTaskComplete | fl                            
+                            #Invoke-Expression $ProfileTemplateCmds | Wait-HPOVTaskComplete | fl       
+                            Invoke-Expression $ProfileTemplateCmds | Wait-HPOVTaskAccepted | format-list
                         }
                         else
                         {

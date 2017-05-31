@@ -1,0 +1,53 @@
+ProfileName,EnableLOCALstorage,ControllerMode,ControllerInitialize,LogicalDisks,Bootable,DriveType,RAID,NumberofDrives,MinDriveSize,MaxDriveSize,
+# Configure local storage for server profile,,,,,,,,,,,
+# Use this sheet to define settings for Local Storage to be imported in OneView.  ,,,,,,,,,,,
+# If the row starts with '#' it will be ignored by the script,,,,,,,,,,,
+# For specific settings -see defintion below,,,,,,,,,,,
+,,,,,,,,,,,
+# Name of profile ,# Yes or No,"# The mode to configure the Smart Array Controller.
+#  Accepted values are:
+# HBA
+# RAID
+# When specifying HBA, you cannot also attach a Logical Disk to this policy.","# Use this parameter to re-initialize the controller.  
+# This will wipe any existing logical disk configured for
+the controller and deploy the new policy defined.
+#
+# Possible values : Yes / No","# Specify list of Logical Disks attached to this controller
+# Use '|' as separator
+# Must be unique within the Server Profile","# Indicates if the logical drive is bootable or not. 
+# Cannot be combined with an FC or FCoE Server Profile Connection that is also set as Bootable.  
+# Parameter is not valid with defining Synergy JBOD SAS disk policies.
+
+# Values : Yes / No
+# For each disk use '|' as separator","#  Defines the interface type for drives that will be used to build the logical drive. 
+#Possibel values are:
+# SAS
+# SATA
+# SASSSD
+# SATASSD
+#
+# For each disk use '|' as separator","# The RAID level of the logical drive. 
+#Supported values depend on the local storage capabilities of the selected server hardware type.
+# Only RAID0 and RAID1 are supported for embedded BL disk policies. 
+#RAID5, RAID6, RAID10 are supported with DL servers with SmartArray controller that supports the RAID type.
+#
+# For each disk use '|' as separator","# The number of physical drives to be used to build the logical drive. 
+# The provided values must be consistent with the selected RAID level
+# and cannot exceed the maximum supported number of drives for the selected server hardware type.
+#
+# For each disk use '|' as separator",# Only for Synergy BigBird,# Only for Synergy BigBird,
+,,,,,,,,,,,
+,,,,,,,,,,,
+FromExport,Yes,RAID,Yes,Disk1,Yes,SASSSD,RAID0,2,,,
+,,,,,,,,,,,
+DL-Gen9-Profile,Yes,RAID,Yes,Disk1|Disk2,Yes|No,SAS|SATA,RAID0|RAID0,2|2,,,
+,,,,,,,,,,,
+DL-Gen8-Profile,Yes,RAID,Yes,Disk1|Disk2,Yes|No,SAS|SATA,RAID0|RAID0,2|2,,,
+,,,,,,,,,,,
+Encl2-Bay12 Profile,Yes,RAID,Yes,Disk1,Yes,SASSSD,RAID0,2,,,
+,,,,,,,,,,,
+Encl2-Bay7 Profile,Yes,RAID,Yes,Disk1,Yes,SASSSD,RAID0,2,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,

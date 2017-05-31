@@ -1,0 +1,82 @@
+ProfileTemplateName,Description,ServerProfileDescription,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,HideUnusedFlexNics,
+#Configure Server profile per Rack,,,,,,,,,,,,,,,,,,
+# Use this sheet to define settings for Server profile to be imported in OneView.  ,,,,,,,,,,,,,,,,,,
+# If the row starts with '#' it will be ignored by the script,,,,,,,,,,,,,,,,,,
+# For specific settings -see defintion below,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+# ProfileTemplate name,,,# Name of server Hardware Type,"# Name of Enclosure Group
+# Only for Blade Servers","# In a server profile, the Affinity control sets the remove-and-replace behavior for blade servers
+# Accepted values are 
+# Bay 
+# BayAndServer
+#  Default is 'Bay'
+# Only for Blade Servers","# Yes / No
+# Enable Firmware Management.  
+# Cannot be enabled with Server Hardware Type does not support Firmware Management (i.e. BL G7)
+# If ' NO' , all the FW* settings will be ignored",# Firmware baseline to assign,"# Define the mode a firmware baseline will be deployed.  Allowed values:
+# FirmwareOnly - Updates the firmware without powering down the server hardware using using HP Smart Update Tools.
+# FirmwareAndSoftware - Updates the firmware and OS drivers without powering down the server hardware using HP Smart Update Tools.
+# FirmwareOffline - Manages the firmware through HP OneView. Selecting this option requires the server hardware to be powered down.","# Using this parameter will force the bundled firmware components to install when the Server Profile is applied to a server.  
+# This will downgrade firmware if the component firmware is newer than what the SPP Baseline contains.
+# If omitted, then the connection is not bootable, and -priority is set to NotBootable.
+# Yes / No","# List of BIOS attributes you want to modify
+# The syntax is :
+#id=ID1;Value=Value1 | id=ID2;Value=Value2
+#Note: Works only for Server Gen 8 or later
+# To get a sense of ID and values ofr each setting, use the following techniques:
+# $ThisSHT = Get-HPOVServerHardwareType -name "" A given Hardware Type""
+# This.SHT.BIOSSettings | select id, DependencyList
+#Note: id and value must be in lowercase
+# TO BE TESTED","# Boot Order settings to be managed
+# Gen7/8 BIOS Default Boot Order: CD|Floppy|USB|HardDisk|PXE
+# Gen9 Legacy BIOS Boot Order: CD|USB|HardDisk|PXE
+# Gen9 UEFI Default Boot Order: HardDisk
+#
+# Note: Gen9 UEFI boot values: HardDisk or PXE","# Specify the Gen9 Boot Envrionment.
+# Sets the boot mode as one of the following:
+# UEFI
+# UEFIOptimized
+# BIOS
+# Default : BIOS
+#Note: Applies only for Gen9 or above","# Controls the ordering of the network modes available to the Flexible LOM (FLB); for example, IPv4 and IPv6.
+# Allowed values are:
+# Auto
+# IPv4 only
+# IPv6 only
+# IPv4 then IPv6
+# IPv6 then IPv4
+#
+# Default: Auto","# Optional setting for MAC assignment.
+# Possible values:
+# Virtual
+# Physical
+#  Use Virtual if you need to specify a UserDefined value when using the New-HPOVServerProfileConnection helper CMDLET","# Optional setting for WWN assignment.
+# Possible values:
+# Virtual
+# Physical
+#  Use Virtual if you need to specify a UserDefined value when using the New-HPOVServerProfileConnection helper CMDLET","# Optional setting for serial number and UUID assignment.
+# Possible values:
+# Virtual
+# Physical
+# UserDefined","#This setting provides the ability to hide unused FlexNICs from the operating system.
+# Yes / No
+# Defaul is : Yes",
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+Template-SY-480-Gen9-2,Template for SY-480-Gen9-2,,SY 480 Gen9 2,Group-HV01-HV08,Bay,No,,,No,id=PowerProfile;value=MaxPerf|id=TimeZone;value=UtcM8,CD|USB|HardDisk|PXE,BIOS,Auto,Physical,Virtual,Physical,Yes,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,
+#DL-Gen9-Profile,Template for DL 9,No DL in Synergy schema,DL360 Gen9 1,,,Yes,Service Pack for ProLiant version 2016.10.0,FirmwareAndSoftware,Yes,id=PowerProfile;value=MaxPerf|id=TimeZone;value=UtcM8,CD|USB|HardDisk|PXE,BIOS,Auto,Physical,Virtual,Physical,,
+,,,,,,,,,,,,,,,,,,
+#DL-Gen8-Profile,Template for DL 8,No DL in Synergy schema,DL360p Gen8 1,,,Yes,Service Pack for ProLiant version 2016.10.0,FirmwareAndSoftware,Yes,,CD|USB|HardDisk|PXE,BIOS,Ipv$,Physical,Virtual,Physical,,

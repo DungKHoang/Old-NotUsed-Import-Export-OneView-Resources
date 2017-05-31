@@ -1,0 +1,47 @@
+EnclosureGroupName,Description,LogicalInterConnectGroupMapping,EnclosureCount,IPv4AddressType,AddressPool,DeploymentNetworkType,DeploymentNetwork,PowerRedundantMode,,,,,,
+#Configure EnclosureGroup,,,,,,,,,,,,,,
+# Use this sheet to define settings for EnclosureGroup to be created in OneView.  ,,,,,,,,,,,,,,
+# If the row starts with '#' it will be ignored by the script,,,,,,,,,,,,,,
+# For specific settings -see defintion below,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,
+#Enclosure Group  name,# LIG Name,"# An Enclosure Group can reference multiple Logical Interconnect Groups, once per Interconnect Bay.
+# Syntax is:
+#         LIG-object   -> 1 single LIG for all Interconnect Bay
+#         Frame# = LIG-A,LIG-B | Frame## = LIG-C,LIG-D
+# 
+# Note: Use | as separator","# N/A if C7000
+# Number of Synergy Frames that participate in an Enclosure Group","# N/A if C7000
+# Use to specify how  IPv4 Addresses will be assigned to 
+# Synergy resources management interface(s).
+#  Allowed values:
+#           External -  The IPv4 address is managed externally.
+#           DHCP -  The IPv4 address is assigned using DHCP (Default).
+#           AddressPool - The IPv4 address is assigned from a pool of IP addresses specified by the AddressPool parameter ","# N/A if C7000
+# Name of the IPv4 Address Pool as listed in Get-HPOVSubnet","# N/A if C7000
+# Specify the Synergy Image Stream deployment network type.
+# Allowed values:
+#         Internal - Deployment network is an internal, managed by the Frame links.
+#         External - Deployment network is connected to an External management switch.
+#        None - No deployment network will be configured (default)","# N/A if C7000
+# The Ethernet Network with the purpose property set to Management
+# Allowed values:
+#         Internal - Deployment network is an internal, managed by the Frame links.
+#         External - Deployment network is connected to an External management switch.
+#        None - No deployment network will be configured (default)","# The Power Redundancy Mode to set when an Enclosure is added to the appliance.
+# Allowed Values:
+#    RedundantPowerFeed - Provides N+N Power Redundancy Configuration
+#    RedundantPowerSupply - Provided N+1 Power Redundancy Configuration",,,,,,
+,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,
+Group-HV09-HV16,,"Frame1 = LIG-SAS-SCR,LIG-Ethernet-SCR | Frame2 = LIG-FC-SCR | Frame3 = LIG-SAS-SCR,LIG-Ethernet-SCR",3,AddressPool,Pool1,None,,RedundantPowerFeed,,,,,,
+,,,,,,,,,,,,,,
+Group-HV01-HV08,,LIG-Ethernet-SCR,3,DHCP,,None,,RedundantPowerFeed,,,,,,
+,,,,,,,,,,,,,,
+Group-HV17-HV24,,"Frame1=LIG-SAS-SCR,LIG-FC-SCR",3,DHCP,,None,,RedundantPowerFeed,,,,,,
+,,,,,,,,,,,,,,
+OneFrame-EnclosureG,,OneFrame-SCR,1,DHCP,,None,,RedundantPowerFeed,,,,,,
+,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,

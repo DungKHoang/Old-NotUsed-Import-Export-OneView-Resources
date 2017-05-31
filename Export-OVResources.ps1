@@ -42,11 +42,13 @@
 ##
 ##         April 2017 - Include Vincent Berger's modifications
 ##
-##       May 2017 - v3.1   - Add AuthLoginDomain to Connect-HPOVMgmt  
-##                         
-##   Version : 3.1
+##         May 2017 - v3.1   - Add AuthLoginDomain to Connect-HPOVMgmt  
 ##
-##   Version : 3.1 - May 2017
+##         June 2017 - v3.2  - Align with Import-OVResources.ps1
+##                         
+##   Version : 3.2
+##
+##   Version : 3.2 - June 2017
 ##
 ## Contact : Dung.HoangKhac@hpe.com
 ##
@@ -166,7 +168,7 @@
 
   .Notes
     NAME:  Export-OVResources
-    LASTEDIT: 01/11/2017
+    LASTEDIT: 06/01/2017
     KEYWORDS: OV  Export
    
   .Link
@@ -175,14 +177,17 @@
  #Requires PS -Version 3.0
  #>
   
+
+
 ## -------------------------------------------------------------------------------------------------------------
 
-Param ( [string]$OVApplianceIP="10.254.13.212", 
-        [string]$OVAdminName="Administrator", 
-        [string]$OVAdminPassword="P@ssword1",
-        [string]$OVAuthDomain = "local",
+Param ( [string]$OVApplianceIP   = "" , 
+        [string]$OVAdminName     = "", 
+        [string]$OVAdminPassword = "",
+        [string]$OVAuthDomain    = "local",
 
         [switch]$All,
+       
 
         [string]$OVEthernetNetworksCSV ="",                                               #D:\Oneview Scripts\OV-EthernetNetworks.csv",
         [string]$OVNetworkSetCSV ="",
@@ -2064,6 +2069,7 @@ Function Export-OVAddressPool([string]$OutFile)
 
        if ($All)
        {
+
             $OVEthernetNetworksCSV          = "Ethernetnetworks.csv"
             $OVNetworkSetCSV                = "netset.csv"
             $OVFCNetworksCSV                = "FCNetworks.csv"

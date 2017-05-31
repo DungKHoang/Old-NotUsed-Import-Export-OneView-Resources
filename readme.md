@@ -109,13 +109,22 @@ Import-OVResources.ps1 is a PowerShell script that configures OV resources based
 
 ```
 
-### To create Enclosure
+### To import Enclosure
 
 ```
 
 .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVEnclosureCSV c:\Enclosure.csv
 
 ```
+
+### To import DL servers
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVServerCSV c:\Server.csv
+
+```
+
 
 ### To create Server profile Template
 
@@ -241,6 +250,14 @@ Export-OVResources.ps1 is a PowerShell script that exports OV resources into CSV
 ```
 
 .\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVEnclosureCSV c:\Enclosure.csv
+
+```
+
+### To export DL Servers
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVServerCSV c:\Servers.csv
 
 ```
 

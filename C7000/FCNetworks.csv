@@ -1,0 +1,36 @@
+NetworkName,Description,Type,FabricType,ManagedSAN,vLANID,TypicalBandwidth,MaximumBandwidth,LoginRedistribution,LinkStabilityTime,,,
+,,,,,,,,,,,,
+#Configure Fibre Channel networks,,,,,,,,,,,,
+# Use this sheet to define settings for FC networks to be created in OneView.  ,,,,,,,,,,,,
+# If the row starts with '#' it will be ignored by the script,,,,,,,,,,,,
+# For specific settings - read the comments on the first cell in the column for possible values,,,,,,,,,,,,
+# ManagedSAN  not used yet,,,,,,,,,,,,
+,,,,,,,,,,,,
+# For specific settings - See Definition below,,,,,,,,,,,,
+,,,,,,,,,,,,
+#,,"# FC
+# FCOE","# Required only if Type= FC
+# Possible values:
+#  FabricAttach (default)
+#  FA
+#  DirectAttach
+# DA",,# Required if Type = FCOE,# in Gbps,# in Gbps,"# Required only if Type= FC
+# Possible values:
+# Auto
+# Manual","# Required only if Type= FC
+# Default = 30",,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+FC_direct_a,Direct Attach FC For Encl1 on Interconnect 1,FC,DirectAttach,,,4,8,30,30,,,
+,,,,,,,,,,,,
+FC_direct_b,Direct Attach FC For Encl1 on Interconnect 2,FC,DirectAttach,,,4,8,30,30,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+FC_fabric_a_Encl1,Fabric Attach FC - Encl 1,FC,FabricAttach,SAN1_0,,4,8,30,30,,,
+,,,,,,,,,,,,
+FC_fabric_b_Encl1,Fabric Attach FC - Encl 1,FC,FabricAttach,SAN1_0,,4,8,30,30,,,
+,,,,,,,,,,,,
+FC_fabric_a_Encl2,Fabric Attach FC - Encl 2,FC,FabricAttach,SAN1_1,,4,8,30,30,,,
+,,,,,,,,,,,,
+FC_fabric_b_Encl2,Fabric Attach FC - Encl 2,FC,FabricAttach,SAN1_1,,4,8,30,30,,,

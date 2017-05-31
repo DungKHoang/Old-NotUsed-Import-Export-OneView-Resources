@@ -1,0 +1,33 @@
+NetworkName,Description,Type,FabricType,ManagedSAN,vLANID,TypicalBandwidth,MaximumBandwidth,LoginRedistribution,LinkStabilityTime,,,
+,,,,,,,,,,,,
+#Configure Fibre Channel networks,,,,,,,,,,,,
+# Use this sheet to define settings for FC networks to be created in OneView.  ,,,,,,,,,,,,
+# If the row starts with '#' it will be ignored by the script,,,,,,,,,,,,
+# For specific settings - read the comments on the first cell in the column for possible values,,,,,,,,,,,,
+# ManagedSAN  not used yet,,,,,,,,,,,,
+,,,,,,,,,,,,
+# For specific settings - See Definition below,,,,,,,,,,,,
+,,,,,,,,,,,,
+#,,"# FC
+# FCOE","# Required only if Type= FC
+# Possible values:
+#  FabricAttach (default)
+#  FA
+#  DirectAttach
+# DA",,# Required if Type = FCOE,# in Gbps,# in Gbps,"# Required only if Type= FC
+# Possible values:
+# Auto
+# Manual","# Required only if Type= FC
+# Default = 30",,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+VC1-SAN10,FCOE to SAN10 ,FCOE,,VSAN10,10,4,8,,,,,
+,,,,,,,,,,,,
+VC1-SAN20,FC to SAN20,FC,FabricAttach,VSAN20,,4,8,Auto,30,,,
+,,,,,,,,,,,,
+VC2-SAN11,FCOE to SAN10 ,FCOE,,VSAN11,11,4,8,,,,,
+,,,,,,,,,,,,
+VC1-SAN21,FC to SAN21,FC,FabricAttach,VSAN21,,4,8,Auto,30,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
