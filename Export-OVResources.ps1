@@ -43,12 +43,12 @@
 ##         April 2017 - Include Vincent Berger's modifications
 ##
 ##         May 2017 - v3.1   - Add AuthLoginDomain to Connect-HPOVMgmt  
-##
-##         June 2017 - v3.2  - Align with Import-OVResources.ps1
+##         June 2017         - Fix overwite of Profileconnection, Profile LOCAL storage and Profile SAN Storage by template
+##                           - Check whether the Appliance is COmposer to extract IPv4 Address range
 ##                         
-##   Version : 3.2
+##   Version : 3.101
 ##
-##   Version : 3.2 - June 2017
+##   Version : 3.101 - June 2017
 ##
 ## Contact : Dung.HoangKhac@hpe.com
 ##
@@ -168,7 +168,7 @@
 
   .Notes
     NAME:  Export-OVResources
-    LASTEDIT: 06/01/2017
+    LASTEDIT: 01/11/2017
     KEYWORDS: OV  Export
    
   .Link
@@ -177,17 +177,14 @@
  #Requires PS -Version 3.0
  #>
   
-
-
 ## -------------------------------------------------------------------------------------------------------------
 
-Param ( [string]$OVApplianceIP   = "" , 
-        [string]$OVAdminName     = "", 
-        [string]$OVAdminPassword = "",
-        [string]$OVAuthDomain    = "local",
+Param ( [string]$OVApplianceIP="10.254.13.212", 
+        [string]$OVAdminName="Administrator", 
+        [string]$OVAdminPassword="P@ssword1",
+        [string]$OVAuthDomain = "local",
 
         [switch]$All,
-       
 
         [string]$OVEthernetNetworksCSV ="",                                               #D:\Oneview Scripts\OV-EthernetNetworks.csv",
         [string]$OVNetworkSetCSV ="",
@@ -1995,27 +1992,28 @@ Function Export-OVAddressPool([string]$OutFile)
                 $StartAddress  = $ThisRange.StartAddress
                 $EndAddress    = $ThisRange.EndAddress
             }
-            if ($Category -eq 'id-range-IPV4')
+            $NetworkID = $SubnetMask = $Gateway = $ListofDNS = $Domain = ""
+            if ($global:ApplianceConnection.ApplianceType -eq 'Composer')
             {
-                $ThisSubnet  = Get-HPOVAddressPoolSubnet | where rangeuris -contains $rangeuri
-                if ($ThisSubnet)
+                if ($Category -eq 'id-range-IPV4')
                 {
-                    $NetworkID  = $ThisSubnet.networkID
-                    $SubnetMask = $ThisSubnet.subnetmask
-                    $gateway    = $ThisSubnet.gateway
-                    $Domain     = $ThisSubnet.domain
-                    $dnsservers = $ThisSubnet.dnsServers
-                    if ($dnsservers)
-                    { 
-                        [array]::sort($dnsservers)
-                        $ListofDNS = $dnsservers -join $SepChar
+                    $ThisSubnet  = Get-HPOVAddressPoolSubnet | where rangeuris -contains $rangeuri
+                    if ($ThisSubnet)
+                    {
+                        $NetworkID  = $ThisSubnet.networkID
+                        $SubnetMask = $ThisSubnet.subnetmask
+                        $gateway    = $ThisSubnet.gateway
+                        $Domain     = $ThisSubnet.domain
+                        $dnsservers = $ThisSubnet.dnsServers
+                        if ($dnsservers)
+                        { 
+                            [array]::sort($dnsservers)
+                            $ListofDNS = $dnsservers -join $SepChar
+                        }
                     }
                 }
             }
-            else 
-            {
-                $NetworkID = $SubnetMask = $Gateway = $ListofDNS = $Domain = ""
-            }
+
 
             #                PoolName,PoolType,RangeType,StartAddress,EndAddress,NetworkID,SubnetMask,Gateway,DnsServers,DomainName
             $ValuesArray += "$PoolName,$PoolType,$RangeType,$StartAddress,$EndAddress,$NetworkID,$SubnetMask,$gateway,$ListofDNS,$domain" + $CR 
@@ -2065,34 +2063,39 @@ Function Export-OVAddressPool([string]$OutFile)
         # ---------------- Connect to OneView appliance
         #
         write-host -foreground Cyan "$CR Connect to the OneView appliance..."
-         Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain
+        $global:ApplianceConnection =  Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain
+
+        $OVProfileTemplateConnectionCSV = $OVProfileTemplateLOCALStorageCSV = $OVProfileTemplateSANStorageCSV = ""
 
        if ($All)
        {
-
-            $OVEthernetNetworksCSV          = "Ethernetnetworks.csv"
-            $OVNetworkSetCSV                = "netset.csv"
-            $OVFCNetworksCSV                = "FCNetworks.csv"
+            $OVEthernetNetworksCSV                 = "Ethernetnetworks.csv"
+            $OVNetworkSetCSV                       = "netset.csv"
+            $OVFCNetworksCSV                       = "FCNetworks.csv"
             
-            $OVLogicalInterConnectGroupCSV  = "LogicalInterConnectGroup.csv"
-            $OVUplinkSetCSV                 = "UpLinkSet.csv"
+            $OVLogicalInterConnectGroupCSV         = "LogicalInterConnectGroup.csv"
+            $OVUplinkSetCSV                        = "UpLinkSet.csv"
             
-            $OVEnclosureGroupCSV            = "EnclosureGroup.csv"
-            $OVEnclosureCSV                 = "Enclosure.csv"
-            $OVServerCSV                    = "Server.csv"
+            $OVEnclosureGroupCSV                   = "EnclosureGroup.csv"
+            $OVEnclosureCSV                        = "Enclosure.csv"
+            $OVServerCSV                           = "Server.csv"
 
-            $OVProfileCSV                   = "Profile.csv"
-            $OVProfileTemplateCSV           = "Profiletemplate.csv"
-            $OVProfileconnectionCSV         = "Profileconnection.csv"
-            $OVProfileLOCALStorageCSV       = "ProfileLOCALStorage.csv"
-            $OVProfileSANStorageCSV         = "ProfileSANStorage.csv"
+            $OVProfileCSV                          = "Profile.csv"
+            $OVProfileTemplateCSV                  = "Profiletemplate.csv"
+            $OVProfileconnectionCSV                = "Profileconnection.csv"
+            $OVProfileLOCALStorageCSV              = "ProfileLOCALStorage.csv"
+            $OVProfileSANStorageCSV                = "ProfileSANStorage.csv"
 
-            $OVSanManagerCSV                = "SANManager.csv"
-            $OVStorageSystemCSV             = "StorageSystems.csv"
-            $OVStorageVolumeTemplateCSV     = "StorageVolumeTemplate.csv"
-            $OVStorageVolumeCSV             = "StorageVolume.csv"
+            $OVProfileTemplateConnectionCSV        = "ProfileTemplateconnection.csv"
+            $OVProfileTemplateLOCALStorageCSV      = "ProfileTemplateLOCALStorage.csv"
+            $OVProfileTemplateSANStorageCSV        = "ProfileTemplateSANStorage.csv"
+
+            $OVSanManagerCSV                       = "SANManager.csv"
+            $OVStorageSystemCSV                    = "StorageSystems.csv"
+            $OVStorageVolumeTemplateCSV            = "StorageVolumeTemplate.csv"
+            $OVStorageVolumeCSV                    = "StorageVolume.csv"
             
-            $OVAddressPoolCSV               = "AddressPool.CSV"
+            $OVAddressPoolCSV                      = "AddressPool.CSV"
        }  
         
 
@@ -2184,24 +2187,41 @@ Function Export-OVAddressPool([string]$OutFile)
 
             write-host -ForegroundColor Cyan "Exporting Profile --> $OVProfileCSV $CR and ProfileConnection --> $OVProfileConnectionCSV $CR and LOCALStorage --> $OVProfileLOCALStorageCSV  $CR and SANStorage --> $OVProfileSANStorageCSV"
             Export-ProfileorTemplate -CreateProfile       -OutprofileTemplate $OVProfileCSV    -outConnectionfile $OVProfileConnectionCSV  -OutLOCALStorageFile  $OVProfileLOCALStorageCSV -OutSANStorageFile  $OVProfileSANStorageCSV 
-      
+            
+            $OVProfileConnectionCSV = $OVProfileLOCALStorageCSV = $OVProfileSANStorageCSV = ""
        }
 
 
        if ($OVProfileTemplateCSV)
        { 
+            ## Network Connection file
+            if (-not ($OVProfileTemplateConnectionCSV))
+                 { $OVProfileTemplateConnectionCSV = "ProfileTemplateconnection.csv"}
+
             if (-not ($OVProfileConnectionCSV))
-                { $OVProfileConnectionCSV = "Profileconnection.csv"}
+                { $OVProfileConnectionCSV = $OVProfileTemplateConnectionCSV }
+                 
+            ## LOCAL Storage file
+            if (-not ($OVProfileTemplateLOCALStorageCSV))
+                 { $OVProfileTemplateLOCALStorageCSV = "ProfileTemplateLOCALStorage.csv"}
 
             if (-not ($OVProfileLOCALStorageCSV))
-                { $OVProfileLOCALStorageCSV = "ProfileLOCALStorage.csv"}
+                { $OVProfileLOCALStorageCSV = $OVProfileTemplateLOCALStorageCSV }
+                               
+            ## SAN Storage file
+            if (-not ($OVProfileTemplateSANStorageCSV))
+                 { $OVProfileTemplateSANStorageCSV = "ProfileTemplateSANStorage.csv"}
 
             if (-not ($OVProfileSANStorageCSV))
-                { $OVProfileSANStorageCSV = "ProfileSANStorage.csv"}
+                { $OVProfileSANStorageCSV = $OVProfileTemplateSANStorageCSV }
+
+
 
             write-host -ForegroundColor Cyan "Exporting Profile Template --> $OVProfileTemplateCSV $CR and TemplateConnection --> $OVProfileConnectionCSV $CR and LOCALStorage --> $OVProfileLOCALStorageCSV  $CR and SANStorage --> $OVProfileSANStorageCSV"
             Export-ProfileorTemplate        -OutprofileTemplate $OVProfileTemplateCSV    -outConnectionfile $OVProfileConnectionCSV  -OutLOCALStorageFile  $OVProfileLOCALStorageCSV -OutSANStorageFile  $OVProfileSANStorageCSV 
-      
+            
+            $OVProfileConnectionCSV = $OVProfileLOCALStorageCSV = $OVProfileSANStorageCSV = ""
+
      }
 
 
