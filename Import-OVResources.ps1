@@ -25,9 +25,11 @@
 ##         OVUpLinkSetCSV                     = path to the CSV file containing UplinkSet
 ##         OVEnclosureGroupCSV                = path to the CSV file containing Enclosure Group
 ##         OVEnclosureCSV                     = path to the CSV file containing Enclosure definition
+##         OVLogicalEnclosure                 = path to the CSV file containing Logical Enclosure definition
 ##         OVProfileConnectionCSV             = path to the CSV file containing Profile Connections definition
 ##         OVProfileCSV                       = path to the CSV file containing Server Profile definition
 ##         OVAddressPoolCSV                   = path to the CSV file containing Address Pool definition
+##         OVOSDeploymentCSV                  = path to the CSV file containing OS Deployment Server definition
 ##
 ## History: 
 ##         August-15-2014: Update for v1.10
@@ -67,14 +69,27 @@
 ##      Dec 2016           - Add Server Profile template
 ##                         - Add logic for C7000 
 ##                 
-##      May 2017 - v3.1    - Use network objects and nativenetwork objects rather than string in Create-HPOVUplinkset function
+##      May 2017 - v3.01    - Use network objects and nativenetwork objects rather than string in Create-HPOVUplinkset function
 ##                             to match with changes in library 3.0.1293.3770
 ##  
 ##                         - Add AuthLoginDomain to Connect-HPOVMgmt  
 ##                         -Add routine to check update LIG and uplinkset when adding network to networkset if the latter is already used in server profile 
 ##
-##     June 2017 - v3.2    - Change Wait-HPOVTaskComplete to Wait-HPOVTaskStart for profile creation
-##   Version : 3.2
+##      June 2017 - v3.1   - Update with changes in library 3.10
+##                         - Update routine to add network with SubnetID
+##                         - Validate whether SubnetID is already associated with network
+##                         - Validate whether ManagedSAN exists before creating FC networks with Managed SAN
+##                         - Change in Create-OVVolumeTemplate parameter ProvisionType instead of -Full
+##                         - Update Create-OVStorageSystem to include iSCSI storage D9440 for Synergy
+##                         - Add ControllerID attribute when creating logical disk controller
+##                         - Add function to creaate OS Deployment Server for Synergy
+##
+##      Jul 2017 - v3.1    - Add Create-OVLogicalEnclosure
+##                         - Review Create-OVEnclosureGroup function
+##                         - Review Create-OVEnclosure to remove FWiso, change FwInstall and add MonitoredOnly
+##                         - Add quotes around names and description for Create-OVAddressPool, Create-OVEnclosureGroup...
+##
+##   Version : 3.1
 ##
 ##
 ## -------------------------------------------------------------------------------------------------------------
@@ -149,9 +164,9 @@
 
   .PARAMETER OVEnclosureCSV 
     Path to the CSV file containing Enclosure definition
-  
-  .PARAMETER OVServerCSV 
-    Path to the CSV file containing DL servers definition
+
+  .PARAMETER OVLogicalEnclosureCSV 
+    Path to the CSV file containing Logical Enclosure definition
 
   .PARAMETER OVProfileCSV 
     Path to the CSV file containing Server Profile definition
@@ -184,6 +199,9 @@
   .PARAMETER OVAddressPoolCSV
     Path to the CSV file containing Address Pool definition
 
+  .PARAMETER OVOSDeploymentCSV
+    Path to the CSV file containing Deployment Server definition
+
   .PARAMETER OneViewModule
     Module name for POSH OneView library.
 
@@ -194,7 +212,7 @@
 
   .Notes
     NAME:  Import-OVResources
-    LASTEDIT: 06/01/2017
+    LASTEDIT: 01/11/2017
     KEYWORDS: OV  Export
    
   .Link
@@ -206,40 +224,42 @@
 ## -------------------------------------------------------------------------------------------------------------
 
 
-Param ( [string]$OVApplianceIP    = "", 
-        [string]$OVAdminName      = "", 
-        [string]$OVAdminPassword  = "",
-        [string]$OneViewModule    =  "HPONeView.300" ,                                      
-        [string]$OVAuthDomain     = "local",
+Param ( [string]$OVApplianceIP="10.254.13.202", 
+        [string]$OVAdminName="Administrator", 
+        [string]$OVAdminPassword="P@ssword1",
+        [string]$OneViewModule =  "HPONeView.310" ,                                      # D:\OV30-Scripts\posh-hponeview-master\HPOneView.300.psd1",
+        [string]$OVAuthDomain  = "local",
 
-        [string]$OVEthernetNetworksCSV ="",                                               
-        [string]$OVFCNetworksCSV ="",                                                     
+        [string]$OVEthernetNetworksCSV ="",                                               #D:\Oneview Scripts\OV-EthernetNetworks.csv",
+        [string]$OVFCNetworksCSV ="",                                                     #D:\Oneview Scripts\OV-FCNetworks.csv",
         
-        [string]$OVLogicalInterConnectGroupCSV ="",                                       
-        [string]$OVUpLinkSetCSV ="",                                                                                                         
-        [string]$OVEnclosureGroupCSV = "" ,                                                 
-        [string]$OVEnclosureCSV ="",                                                      
-        [string]$OVLogicalEnclosureCSV ="",                                                      
+        [string]$OVLogicalInterConnectGroupCSV ="",                                       #D:\Oneview Scripts\OV-LogicalInterConnectGroup.csv",
+        [string]$OVUpLinkSetCSV ="",                                                        #c:\OV30-Scripts\ex-upl.csv",                                                      
+        [string]$OVEnclosureGroupCSV = "" ,                                                 #D:\Oneview Scripts\OV-EnclosureGroup.csv",
+        [string]$OVEnclosureCSV ="",                                                      #D:\Oneview Scripts\OV-Enclosure.csv",
+        [string]$OVLogicalEnclosureCSV ="",                                                      #D:\Oneview Scripts\OV-LogicalEnclosure.csv",
         
         [string]$OVServerCSV = "",
         
         
-        [string]$OVProfileCSV = "" ,                                                        
-        [string]$OVProfileTemplateCSV = "",                                                 
-        [string]$OVProfileConnectionCSV = "",                                               
-        [string]$OVProfileLOCALStorageCSV = "",                                              
-        [string]$OVProfileSANStorageCSV = "",                                               
+        [string]$OVProfileCSV = "" ,                                                        #c:\OV30-Scripts\c7000\c7000-profile.csv" ,                                                      #D:\Oneview Scripts\OV-Profile.csv",
+        [string]$OVProfileTemplateCSV = "",                                                 #c:\OV30-Scripts\c7000-export\ProfileTemplate.csv",
+        [string]$OVProfileConnectionCSV = "",                                               #"c:\OV30-Scripts\c7000\ProfileConnection.csv",   
+        [string]$OVProfileLOCALStorageCSV = "",                                             # "c:\OV30-Scripts\c7000\C7000-ProfileLOCALStorage.csv",  
+        [string]$OVProfileSANStorageCSV = "",                                               #c:\OV30-Scripts\c7000\C7000-ProfileSANStorage.csv",
 
         [string]$OVProfileFROMTemplateCSV = "",
     
 
-        [string]$OVSanManagerCSV ="",                                                    
+        [string]$OVSanManagerCSV ="",                                                     #D:\Oneview Scripts\OV-FCNetworks.csv",
         [string]$OVStorageSystemCSV ="",  
                                                         
-        [string]$OVStorageVolumeTemplateCSV= "",                                            
+        [string]$OVStorageVolumeTemplateCSV= "",                                            #c:\ov30-scripts\synergy\StorageVolumeTemplate.csv",
         [string]$OVStorageVolumeCSV= "",
 
         [string]$OVAddressPoolCSV = "",
+
+        [string]$OVOSDeploymentCSV  = "",
 
         [int]$BayStart,
         [int]$BayEnd,
@@ -248,10 +268,18 @@ Param ( [string]$OVApplianceIP    = "",
 )
 
 
-$DoubleQuote   = '"'
-$CRLF    = "`r`n"
-$SepChar = "|"
-$Comma   = "," 
+$DoubleQuote    = '"'
+$CRLF           = "`r`n"
+$Delimiter      = "\"   # Delimiter for CSV profile file
+$Sep            = ";"   # USe for multiple values fields
+$SepChar        = '|'
+$CRLF           = "`r`n"
+$OpenDelim      = "={"
+$CloseDelim     = "}" 
+$CR             = "`n"
+$Comma          = ','
+$Equal          = '='
+
 
 [string]$HPOVMinimumVersion = "3.0.1210.3013"
 
@@ -326,6 +354,82 @@ function Check-HPOVVersion {
         }
 }
 
+
+# **************************************************************
+# 
+#   IP Helper Functions
+#
+# **************************************************************
+function Get-IPrange
+{
+<# 
+  .SYNOPSIS  
+    Get the IP addresses in a range 
+  .EXAMPLE 
+   Get-IPrange -start 192.168.8.2 -end 192.168.8.20 
+  .EXAMPLE 
+   Get-IPrange -ip 192.168.8.2 -mask 255.255.255.0 
+  .EXAMPLE 
+   Get-IPrange -ip 192.168.8.3 -cidr 24 
+#> 
+ 
+param 
+( 
+  [string]$start, 
+  [string]$end, 
+  [string]$ip, 
+  [string]$mask, 
+  [int]$cidr 
+) 
+ 
+function IP-toINT64 () { 
+  param ($ip) 
+ 
+  $octets = $ip.split(".") 
+  return [int64]([int64]$octets[0]*16777216 +[int64]$octets[1]*65536 +[int64]$octets[2]*256 +[int64]$octets[3]) 
+} 
+ 
+function INT64-toIP() 
+{ 
+      param ([int64]$int) 
+
+      return (([math]::truncate($int/16777216)).tostring()+"."+([math]::truncate(($int%16777216)/65536)).tostring()+"."+([math]::truncate(($int%65536)/256)).tostring()+"."+([math]::truncate($int%256)).tostring() )
+} 
+ 
+    if ($ip) {$ipaddr = [Net.IPAddress]::Parse($ip)} 
+    if ($cidr) {$maskaddr = [Net.IPAddress]::Parse((INT64-toIP -int ([convert]::ToInt64(("1"*$cidr+"0"*(32-$cidr)),2)))) } 
+    if ($mask) {$maskaddr = [Net.IPAddress]::Parse($mask)} 
+    if ($ip) {$networkaddr = new-object net.ipaddress ($maskaddr.address -band $ipaddr.address)} 
+    if ($ip) {$broadcastaddr = new-object net.ipaddress (([system.net.ipaddress]::parse("255.255.255.255").address -bxor $maskaddr.address -bor $networkaddr.address))} 
+ 
+    if ($ip) 
+    { 
+      $startaddr = IP-toINT64 -ip $networkaddr.ipaddresstostring 
+      $endaddr = IP-toINT64 -ip $broadcastaddr.ipaddresstostring 
+    } 
+    else { 
+      $startaddr = IP-toINT64 -ip $start 
+      $endaddr = IP-toINT64 -ip $end 
+    } 
+ 
+ 
+    for ($i = $startaddr; $i -le $endaddr; $i++) 
+    { 
+      INT64-toIP -int $i 
+    }
+
+}
+
+
+Function ConvertTo-Subnet ([string]$MaskLength)
+{
+ 
+    [IPAddress] $ip = 0
+    $ip.Address = ([UInt32]::MaxValue -1) -shl (32 - $MaskLength) -shr (32 - $MaskLength)
+    return $ip.IPAddressToString
+}
+
+
 ## -------------------------------------------------------------------------------------------------------------
 ##
 ##                     Function AddTo-NetworkSet
@@ -377,7 +481,7 @@ Param   ([string] $ListNetworkSet, [string] $TypicalBandwidth, [string] $MaxBand
                     $Uplinkset = $uplinkset.Trim()
                     $LIG       = $LIG.Trim()
 
-                    $ThisLIG   = Get-HPOVLogicalInterconnectGroup -name $LIG
+                    $ThisLIG   = Get-HPOVLogicalInterconnectGroup |where name -eq $LIG
                     if ($ThisLIG)
                     { 
                         write-host -ForegroundColor Cyan "Adding network $NetworkName to UplinkSet $uplinkset...."
@@ -495,7 +599,7 @@ Param ([string]$OVEthernetNetworksCSV ="D:\Oneview Scripts\OV-EthernetNetworks.c
     }
     # Read the CSV Users file
     $tempFile = [IO.Path]::GetTempFileName()
-    type $OVEthernetNetworksCSV | where { ($_ -notlike ",,,,,*") -and ($_ -notlike '"*') -and ( $_ -notlike "#*") -and ($_ -notlike ",,,#*") } > $tempfile   # Skip blank line
+    type $OVEthernetNetworksCSV | where { ($_ -notlike ",,,,,,,,*") -and ($_ -notlike '"*') -and ( $_ -notlike "#*") -and ($_ -notlike ",,,#*") } > $tempfile   # Skip blank line
     
     $CurrentNetworkSet = ""
     $ListofNetworks    = @()
@@ -534,15 +638,28 @@ Param ([string]$OVEthernetNetworksCSV ="D:\Oneview Scripts\OV-EthernetNetworks.c
 
         if ( $SubnetID)
         {
-            $ThisSubnetID = get-HPOVAddressPoolSubnet | where name -eq $SubnetID
-            if ($ThisSubnetID)
+            $ThisSubnetID = get-HPOVAddressPoolSubnet | where networkID -eq $SubnetID
+            if ( ($ThisSubnetID) -and (-not ($ThisSubnetID.associatedResources)) ) # SubnetID exists and not associated to any existing network
             {
                 $subnetIDCmd = " -subnet `$ThisSubnetID "
             }
+            else
+            {
+                write-host -foreground Yellow " SubnetID $SubnetID already associated to another network. Creating network wthout SubnetID...." 
+            }
+
         }
 
-        if ($vLANID)
-            { $vLANIDCmd = " -vLanID `$VLANID " }
+        if ($vLANType -eq 'Tagged')
+        {
+            if (($vLANID) -and ($vLANID -gt 0))
+                { $vLANIDCmd = " -vLanID `$VLANID " }
+        }
+        else 
+        {
+            $vLANIDCmd = ""
+        }
+            
         
         if ($PBandwidth)
             { $PBWCmd = " -typicalBandwidth `$PBandwidth " }
@@ -640,8 +757,8 @@ Param ([string]$OVFCNetworksCSV ="D:\Oneview Scripts\OV-FCNetworks.csv")
     foreach ($N in $script:ListofFCNets)
     {
 
-        $NetworkName     = $N.NetworkName
-        $Description     = $N.Description
+        $NetworkName     = "'" + $N.NetworkName + "'"
+        $Description     = "'" + $N.Description + "'"
         $FabricType      = $N.FabricType
         $Type            = $N.Type
         $PBandwidth      = 1000 * $N.TypicalBandwidth
@@ -679,8 +796,13 @@ Param ([string]$OVFCNetworksCSV ="D:\Oneview Scripts\OV-FCNetworks.csv")
 
                 if ($ManagedSAN)
                 {
-                    $FCNetCmds += " -ManagedSAN $ManagedSAN "
+                    $ThisManagedSAN = Get-HPOVManagedSAN | where name -eq $ManagedSAN
+                    if ($ThisManagedSAN)
+                    {
+                        $FCNetCmds += " -ManagedSAN $ManagedSAN "
+                    }
 
+            
                 }
 
                 $ThisNetwork = Get-HPOVNetwork | where Name -eq $NetworkName
@@ -1074,7 +1196,7 @@ Param ([string]$OVUpLinkSetCSV ="D:\Oneview Scripts\OV-UpLinkSet.csv")
             $UpLinkSetNetworksArray  = @()
             Foreach ($net in $UpLinkSetNetworks)
             {
-                $netmember = Get-HPOVNetwork -name $net
+                $netmember = Get-HPOVNetwork | where name -eq $net
                 if ($netmember)
                     { $UpLinkSetNetworksArray += $netmember}
             }
@@ -1201,8 +1323,8 @@ Param ( [string]$OVEnclosureGroupCSV ="D:\Oneview Scripts\OV-EnclosureGroup.csv"
 
         foreach ($EG in $ListofEnclosureGroup)
         {
-            $EGName              = $EG.EnclosureGroupName
-            $EGDescription       = $EG.Description
+            $EGName              = "'" + $EG.EnclosureGroupName + "'"
+            $EGDescription       = "'" + $EG.Description + "'"
             $EGEnclosureCount    = $EG.Enclosurecount
             $EGipv4Type          = if ($EG.IPv4AddressType) { $EG.IPv4AddressType } else {"DHCP"} 
             $EGAddressPool       = $EG.AddressPool
@@ -1229,7 +1351,7 @@ Param ( [string]$OVEnclosureGroupCSV ="D:\Oneview Scripts\OV-EnclosureGroup.csv"
                     {    
                         if ($Config -like "*=*")
                         {      
-                            $Key,$LIGName= $Config.Split('=')
+                            $Key,$LIGName= $Config.Split($Equal)
                             $Key =  $Key.Trim()
                             
                             $LIGName = $LIGName.Trim() 
@@ -1238,13 +1360,13 @@ Param ( [string]$OVEnclosureGroupCSV ="D:\Oneview Scripts\OV-EnclosureGroup.csv"
                         
                             if ( $LIGName)
                             {
-                                $LIGNameArray = $LiGName.Split($Comma)
+                                $LIGNameArray = $LiGName.Split($Sep)
           
                                 $LIGObjArray  = @()
                                 
                                 foreach ($LName in $LIGNameArray)
                                 {
-                                    $ThisLIG = Get-HPOVLogicalInterConnectGroup -name $LName
+                                    $ThisLIG = Get-HPOVLogicalInterConnectGroup | where name -eq $LName
                                                        
                                     if ($ThisLIG)
                                     {
@@ -1253,7 +1375,7 @@ Param ( [string]$OVEnclosureGroupCSV ="D:\Oneview Scripts\OV-EnclosureGroup.csv"
                                     }
                                     else
                                     {
-                                        write-host -ForegroundColor Yellow "Logical InterConnect Group $LIGName does not exist. Skip including it...." 
+                                        write-host -ForegroundColor Yellow "Logical InterConnect Group $LName does not exist. Skip including it...." 
                                     }
                                 }
                            
@@ -1302,6 +1424,7 @@ Param ( [string]$OVEnclosureGroupCSV ="D:\Oneview Scripts\OV-EnclosureGroup.csv"
                 if ($global:ApplianceConnection.ApplianceType -eq 'Composer')
                 {
                     $Skip = $false
+                    $EGipv4Type = if ($EGipv4Type -eq 'ipPool') { 'AddressPool'} else {$EGipv4Type}
                     $ipv4AddressPoolParam = " -IPv4AddressType $EGipv4Type "
                     if  ($EGipv4Type -eq 'AddressPool')  
                     {
@@ -1433,11 +1556,14 @@ Param ( [string]$OVEnclosureCSV ="D:\Oneview Scripts\OV-Enclosure.csv")
             $OAADminName       = $Encl.OAADminName 
             $OAADminPassword   = $Encl.OAADminPassword
 
-            $EnclGroupName    = $Encl.EnclosureGroupName
-            $Licensing        = $Encl.LicensingIntent
-            $FWBaseline       = $Encl.FWBaseline
+            $EnclGroupName     = $Encl.EnclosureGroupName
+            $Licensing         = $Encl.LicensingIntent
+            $FWBaseline        = $Encl.FWBaseline
 
-            $ForceAddCmd      = if (!($Encl.ForceAdd) -or ($Encl.ForceAdd -ieq 'Yes')){ " -Confirm:`$true "} else {" -Confirm:`$false "}
+            $FWForceInstallCmd = if ($Encl.FwInstall -eq 'Yes') { " -ForceInstallFirmware " } else { "" }
+            $ForceAddCmd       = if (!($Encl.ForceAdd) -or ($Encl.ForceAdd -ieq 'Yes')){ " -Confirm:`$true "} else {" -Confirm:`$false "}
+
+            $MonitoredCmd      = if ($Encl.MonitoredOnly -eq "Yes") {" -Monitored "} else { ""}
 
             ## TBD - to validate Licensing intent
 
@@ -1451,10 +1577,10 @@ Param ( [string]$OVEnclosureCSV ="D:\Oneview Scripts\OV-Enclosure.csv")
                 $FWCmds = ""
                 if ( -not ([string]::IsNullOrEmpty($FWBaseLine)))
                 {
-                    $FWCmds = " -fwBaselineIsoFilename `$FWBaseLine  "
+                    $FWCmds = " -fwBaselineIsoFilename `$FWBaseLine  $FWForceInstallCmd "
                 }
                 $EnclGroupName = "`'$EnclGroupName`'"
-                $Cmds = "New-HPOVEnclosure -applianceConnection `$global:ApplianceConnection -oa $OAIP -username $OAAdminName -password $OAAdminPassword -enclGroupName $EnclGroupName -license $Licensing $FWCmds $ForceAddCmd "
+                $Cmds = "New-HPOVEnclosure -applianceConnection `$global:ApplianceConnection -oa $OAIP -username $OAAdminName -password $OAAdminPassword -enclGroupName $EnclGroupName -license $Licensing $FWCmds $ForceAddCmd $MonitoredCmd"
  
                 $EncExisted =  Get-HPOVEnclosure | where {($_.activeOaPreferredIP -eq $OAIP ) -or ($_.standbyOaPreferredIP -eq $OAIP )}
             
@@ -1516,8 +1642,8 @@ Function Create-OVLogicalEnclosure {
 
 
   .Notes
-    NAME:  Create-OVEnclosure
-    LASTEDIT: 02/05/2017
+    NAME:  Create-OVLogicalEnclosure
+    LASTEDIT: 07/25/2017
     KEYWORDS: OV Logical Enclosure
    
   .Link
@@ -1525,7 +1651,7 @@ Function Create-OVLogicalEnclosure {
  
  #Requires PS -Version 3.0
  #>
-Param ( [string]$OVLogicalEnclosureCSV ="D:\Oneview Scripts\OV-Enclosure.csv")
+Param ( [string]$OVLogicalEnclosureCSV ="D:\Oneview Scripts\OV-LogicalEnclosure.csv")
 
         if ( -not (Test-path $OVLogicalEnclosureCSV))
         {
@@ -1548,16 +1674,18 @@ Param ( [string]$OVLogicalEnclosureCSV ="D:\Oneview Scripts\OV-Enclosure.csv")
             $EncGroup       = $LE.EnclosureGroup
             $FWBaseline     = $LE.FWBaseline
             $FWInstall      = if ($FWBaseline) { $LE.FWInstall -eq 'Yes'} else {$False} 
-            $ForceAdd       = $LE.ForceAdd -eq 'Yes'
+            #$ForceAdd       = $LE.ForceAdd -eq 'Yes'
 
             if ($EnclName)
             {
-                $ThisEnclosure = Get-HPOVEnclosure -name $EnclName
+                $EnclosureArray = $EnclName.Split($Sep)
+                $ThisEnclosure  = Get-HPOVEnclosure | where name -eq $EnclosureArray[0]
                 if ($ThisEnclosure)
                 {
                     if ($EncGroup)
                     {
-                        $ThisEnclosureGroup = Get-HPOVEnclosureGroup -Name $EncGroup
+                        
+                        $ThisEnclosureGroup = Get-HPOVEnclosureGroup | where  Name -eq $EncGroup
                         if ($ThisEnclosureGroup)
                         {
                             $FWCmds = ""
@@ -1568,7 +1696,7 @@ Param ( [string]$OVLogicalEnclosureCSV ="D:\Oneview Scripts\OV-Enclosure.csv")
                                 {
                                     $FWCmds = " -FirmwareBaseline `$ThisFWBaseLine  "
                                     if ($FWInstall)
-                                    { $FWCmds += " -ForceFirmwareBaseline `$FWInstall "}
+                                    { $FWCmds += " -ForceFirmwareBaseline "}
                                 }
                             }
                             else
@@ -1576,14 +1704,21 @@ Param ( [string]$OVLogicalEnclosureCSV ="D:\Oneview Scripts\OV-Enclosure.csv")
                                 write-host -ForegroundColor Yellow "FW BaseLine not specified. Will not include FW Base line in Logical Enclosure..."           
                             }
                                  
-                                
+                            $ThisLogicalEnclosure = Get-HPOVLogicalEnclosure  | where name -eq $Name 
+                            if ($ThisLogicalEnclosure -eq $NULL)
+                            {   
                                 $Cmds  = "New-HPOVLogicalEnclosure -name $Name -Enclosure `$ThisEnclosure -EnclosureGroup `$ThisEnclosureGroup "
                                 $Cmds += $FWCmds
                                 
                                 write-host -foreground Cyan "-------------------------------------------------------------"
                                 write-host -foreground Cyan "Creating Logical Enclosure for enclosure $EnclName ...."
                                 write-host -foreground Cyan "-------------------------------------------------------------"                   
-                                Invoke-Expression $Cmds | wait-HPOVTaskComplete
+                                Invoke-Expression $Cmds 
+                            }
+                            else
+                            {
+                                write-host -ForegroundColor Yellow "Logical Enclosure $Name already exists. Skip creating Logical Enclosure..."           
+                            }
                         }
                         else
                         {
@@ -1964,6 +2099,7 @@ $a= @"
         foreach ($LS in $ListofLocalStorage)  
         {
             $EnableLOCALStorage  = if ($LS.EnableLOCALStorage -eq 'Yes') { $True} else {$False}
+            $ControllerID        = $LS.ControllerID
             $ControllerMode      = $LS.ControllerMode
             $ControlInit         = if ($LS.ControllerInitialize -eq 'Yes') { $True} else {$False}
             $LDisks              = $LS.LogicalDisks
@@ -2023,7 +2159,7 @@ $b=@"
                 }
             }
                         
-            $ListofControllers += New-HPOVServerProfileLogicalDiskController -Mode $ControllerMode -Initialize:$ControlInit -LogicalDisk $ListofLogicalDisks
+            $ListofControllers += New-HPOVServerProfileLogicalDiskController -Mode $ControllerMode -ControllerID $ControllerID -Initialize:$ControlInit -LogicalDisk $ListofLogicalDisks
         }
 
         return $EnableLocalStorage,$ListofControllers 
@@ -2517,7 +2653,7 @@ Function Create-ProfileorTemplate {
                     
                     if ($enclGroup)
                     {
-                        $ThisEnclosureGroup = Get-HPOVEnclosureGroup -name $EnclGroup
+                        $ThisEnclosureGroup = Get-HPOVEnclosureGroup | where name -eq $EnclGroup
                         if ($ThisEnclosureGroup)
                         { 
                             $egCmds             = " -EnclosureGroup `$ThisEnclosureGroup  " 
@@ -2693,8 +2829,7 @@ Function Create-ProfileorTemplate {
                             $ServerObj | Stop-HPOVServer -Force -confirm:$False | Wait-HPOVTaskComplete
                         }
                         
-                        # Invoke-Expression $ProfileCmds | Wait-HPOVTaskComplete | FL
-                        Invoke-Expression $ProfileCmds | Wait-HPOVTaskAccepted | format-list
+                        Invoke-Expression $ProfileCmds | Wait-HPOVTaskComplete | FL
                     }
                     else    # Create profile template here
                     {
@@ -2706,8 +2841,7 @@ Function Create-ProfileorTemplate {
                             $ProfileTemplateCmds   += $ConnectionsCmds + $LOCALStorageCmds + $SANStorageCmds
                             $ProfileTemplateCmds   +=  $FWCmds  + $BIOSettingsCmds 
                         
-                            #Invoke-Expression $ProfileTemplateCmds | Wait-HPOVTaskComplete | fl       
-                            Invoke-Expression $ProfileTemplateCmds | Wait-HPOVTaskAccepted | format-list
+                        Invoke-Expression $ProfileTemplateCmds | Wait-HPOVTaskComplete | fl                            
                         }
                         else
                         {
@@ -3107,13 +3241,32 @@ Param ( [string]$OVStorageSystemCSV, [string]$OVFCNetworksCSV)
         foreach ($StS in $ListofStorageSystem)
         {
             $StorageHostName         = $StS.StorageHostName
+            $StorageFamilyName       = $Sts.StorageFamilyName
+
             $StorageAdminname        = $StS.StorageAdminName
             $StorageAdminPassword    = $StS.StorageAdminPassword
-            $StorageDomainName       = $StS.StorageDomainName
-            $StoragePorts            = $Sts.StoragePorts
-            $PortsArray              = $Sts.StoragePorts.Split($sepChar)
-            $PoolsArray              = $StS.StoragePools.Split($sepChar)
-            $PoolsArray              = $PoolsArray.Trim()
+
+            $IsStoreServ             = $StorageFamilyName -eq 'StoreServ'
+            $IsStoreVirtual          = $StorageFamilyName -eq 'StoreVirtual'
+                  
+            if ($IsStoreServ)
+            {
+                $StorageDomainName   = $StS.StorageDomainName
+                $StoragePorts        = $Sts.StoragePorts
+                $PortsArray          = if ($StoragePorts) { $StoragePorts.Split($sepChar).Trim() } else {@()}
+            }
+            else
+            {   
+                $StorageVIPS         = $StS.StorageVIPS
+                $VIPSArray           =  if ($StorageVIPS) { $StorageVIPS.Split($SepChar).Trim() } else {@()}
+            }
+
+
+            $StoragePools            = $StS.StoragePools
+
+            $PoolsArray              = if ($StoragePools) { $StoragePools.Split($sepChar).Trim()} else { @() }   
+           
+
 
             
             if ( -not ( [string]::IsNullOrEmpty($StorageHostName) -or [string]::IsNullOrEmpty($StorageAdminName) ) )
@@ -3122,7 +3275,9 @@ Param ( [string]$OVStorageSystemCSV, [string]$OVFCNetworksCSV)
                 $StorageSystemLists = Get-HPOVStorageSystem  
                 foreach ($StorageSystem in $StorageSystemLists)
                 {
-                    $sHostName = $StorageSystem.Credentials.ip_hostName
+                    # Change to library v3.10
+                    #$sHostName = $StorageSystem.Credentials.ip_hostname
+                    $sHostName = $StorageSystem.hostname
                     if ($sHostName -ieq $StorageHostName)
                           { break}
                     else  {$sHostName = "" }
@@ -3134,39 +3289,79 @@ Param ( [string]$OVStorageSystemCSV, [string]$OVFCNetworksCSV)
                 }
                 Else
                 {
-                    # Add param for StorageSystemPorts
-                    if ( -not [string]::IsNullOrEmpty($StorageDomainName))
+                    
+                    $DomainParam = $PortsParam = $VIPSparam = $FamilyParam = $PortsParam = ""
+                    $StorageSystemPorts = $StorageSystemVIPS = @()
+
+                    if ($StorageFamilyName)
+                        { $FamilyParam = " -Family $StorageFamilyName " }
+
+
+                    if ($IsStoreServ)
                     {
-                        $DomainParam = " -domain $StorageDomainName" 
+                        # Add param for StorageSystemPorts
+                        if ( -not [string]::IsNullOrEmpty($StorageDomainName))
+                        {
+                            $DomainParam = " -domain $StorageDomainName" 
+
+                        }
+                        else
+                        {
+                            $DomainParam = " -domain `'NO DOMAIN`' "
+                        }
+
+                        # Add param for StorageSystemPorts
+                        $StorageSystemPorts = @{}
+                        foreach ($p in $PortsArray)
+                        {
+                            $a= $p.Split("=").Trim()
+                            $Port = $a[0]
+                            $Netw = $a[1] 
+                            $StorageSystemPorts.Add($port,$netw)
+                        }
+
+                        if ($StorageSystemPorts.Count -ne 0)
+                        {
+                            $PortsParam = " -ports `$StorageSystemPorts "
+                        }
 
                     }
-                    else
-                    {
-                        $DomainParam = " -domain NoDomain "
-                    }
 
-                    # Add param for StorageSystemPorts
-                    $StorageSystemPorts = @{}
-                    foreach ($p in $PortsArray)
+                    if ($IsStoreVirtual)
                     {
-                        $a= $p.Split("=")
-                        $Port = $a[0]
-                        $Netw = $a[1] 
-                        $StorageSystemPorts.Add($port,$netw)
-                    }
+                        # Add Param for VIPS
+                        $StorageSystemVIPS = @{}
+                        foreach ($v in $VIPSArray)
+                        {
+                            $a   = $v.Split('=').Trim()
+                            $IP  = $a[0]
+                            $Net = $a[1]
 
-                    if ($StorageSystemPorts)
-                    {
-                        $PortsParam = " -ports `$StorageSystemPorts"
-                    }
-                    else
-                    {
-                        $PortsParam = "" 
+                            $ThisNet = Get-HPOVNetwork | where name -eq $Net
+                          
+                            if ($IP)
+                            {
+                                $StorageSystemVIPS.Add($IP, $ThisNet)
+                            }
+                            else
+                            {
+                                write-host -foreground YEllow " Either VIPS IP address is not specified or network name $net does not exist. Skip creating VIPS..." 
+                            }
+                        }
+
+                        if ($StorageSystemVIPS)
+                        {
+                            $VIPSparam = " -VIPS `$StorageSystemVIPS "
+                        }
+
+
+
                     }
 
 
            
-                    $Cmds= "Add-HPOVStorageSystem -hostname $StorageHostName -username $StorageAdminName -password $StorageAdminPassword $DomainParam $PortsParam"
+                    $Cmds= "Add-HPOVStorageSystem -hostname $StorageHostName -username $StorageAdminName  -password $StorageAdminPassword $FamilyParam $DomainParam $PortsParam $VIPSparam "
+          
 
                     write-host -foreground Cyan "-------------------------------------------------------------"
                     write-host -foreground Cyan "Adding storage system $StorageHostName                       "
@@ -3183,30 +3378,53 @@ Param ( [string]$OVStorageSystemCSV, [string]$OVFCNetworksCSV)
                         ##
                         ## Add StoragePools
                         ##
-                        $ThisStorageSystem = Get-HPOVStorageSystem | where {$_.credentials.ip_hostname -eq $StorageHostName}
-                        $UnManagedPools    = $NULL
+                        ## Change to 3.10 library - Now IP address is exposed through HostName
+                        #$ThisStorageSystem = Get-HPOVStorageSystem | where {$_.credentials.ip_hostname -eq $StorageHostName}
 
-                        if ($ThisStorageSystem)
+                        $ThisStorageSystem = Get-HPOVStorageSystem | where hostname -eq $StorageHostName
+                        $UnManagedPools    = @()
+
+                        if (($ThisStorageSystem) -and ($ThisStorageSystem.deviceSpecificAttributes.ManagedDomain))
                         {
-                            $UnManagedPools = $ThisStorageSystem.UnManagedPools.GetEnumerator() | select -ExpandProperty name
+                            ## Change to 3.10 library - Now need StoragePoolUri
+
+                            #$UnManagedPools = $ThisStorageSystem.UnManagedPools.GetEnumerator() | select -ExpandProperty name
+
+                            $spuri           = $ThisStorageSystem.storagePoolsUri
+                            $StoragePools    = Send-HPOVRequest -uri $spuri
+                            $UnManagedPools  = $StoragePools.Members | where isManaged -eq $False 
+                            
+                            if ($UnManagedPools)
+                            {
+                              $UnManagedPools  = $UnManagedPools.Name 
+                              $UnManagedPools  = $UnManagedPools.Trim()
+                            }
+
+                          
+
+                            foreach ($PoolName in $PoolsArray)
+                            {
+                                if ( $UnManagedPools.contains($PoolName))
+                                {
+                                    write-host -foreground Cyan "-------------------------------------------------------------"
+                                    write-host -foreground Cyan "Adding Storage Pool $PoolName to StorageSystem $($ThisStorageSystem.Name) "
+                                    write-host -foreground Cyan "-------------------------------------------------------------"
+                                    $task = Add-HPOVStoragePool -StorageSystem $ThisStorageSystem -poolName $PoolName | Wait-HPOVTaskComplete
+                                }
+                                else
+                                {
+                                    write-host -ForegroundColor Yellow " Storage Pool Name $PoolName does not exist or already in Managed pools" 
+                                }
+
+
+                            }
+                        }
+                        
+                        else
+                        {
+                            write-host -ForegroundColor Yellow " Storage System $StorageHostName does not exist or is un-managed. Cannot add storage pools...." 
                         }
 
-                        foreach ($PoolName in $PoolsArray)
-                        {
-                            if ( $UnManagedPools.contains($PoolName))
-                            {
-                                write-host -foreground Cyan "-------------------------------------------------------------"
-                                write-host -foreground Cyan "Adding Storage Pool $PoolName to StorageSystem $($ThisStorageSystem.Name) "
-                                write-host -foreground Cyan "-------------------------------------------------------------"
-                                $task = Add-HPOVStoragePool -StorageSystem $ThisStorageSystem -poolName $PoolName | Wait-HPOVTaskComplete
-                            }
-                            else
-                            {
-                                write-host -ForegroundColor Yellow " Storage Pool Name $PoolName does not exist or already in Managed pools" 
-                            }
-
-
-                        }
 
                     }
                     else
@@ -3433,18 +3651,25 @@ Param ([string]$OVStorageVolumeTemplateCSV ="D:\Oneview Scripts\OVStorageVolumeT
         $StsSystem     = $SVT.StorageSystem
         $SnapShotStP   = $SVT.SnapShotStoragePool
         $Capacity      = $SVT.Capacity
-        $ProvTypeParam = if ($SVT.ProvisionningType -ieq 'Thick') { ' -full' } else { ''}
-        $SharedParam   = if ($SVT.Shared -ieq 'Yes') { ' -shared' }  else {''}        
+
+        $SharedParam   = if ($SVT.Shared -ieq 'Yes') { ' -shared' }  else {''}    
+            
+        $ProvType      = $SVT.ProvisionningType
+        $ProvTypeParam = if ($ProvType) { " -ProvisionType $ProvType " } else { " -ProvisionType Thin "}
        
         $Description   = "`"" + $Description + "`""   # Surrounded with Quotes
         $StorageSystemParam = ""
         if ($StsSystem)
         {
-            $StorageSystem = get-hpovStorageSystem | where {$_.credentials.ip_hostname -eq $StsSystem}
+            # Change to 3.10 library - Use Hostname instead of Credentials
+
+            #$StorageSystem = get-hpovStorageSystem | where {$_.credentials.ip_hostname -eq $StsSystem}
+            $StorageSystem = get-hpovStorageSystem | where hostname -eq $StsSystem
+            
             if ($StorageSystem)
             {
                 
-                $StorageSystemParam = "  -StorageSystem $($StorageSystem.Name)" 
+                $StorageSystemParam = "  -StorageSystem `$StorageSystem" 
             }
 
         }
@@ -3452,7 +3677,9 @@ Param ([string]$OVStorageVolumeTemplateCSV ="D:\Oneview Scripts\OVStorageVolumeT
         {
             $ThisSnapShotStoragePool = Get-HPOVStoragePool | where Name -eq $SnapShotStP
             if ($ThisSnapShotStoragePool)
-                {  $SnapShotParam = " -SnapShotStoragePool $SnapShotStp  " }
+                # Change for 3.10 library - StorageSystem is mandatory and StoragePool is object
+                # {  $SnapShotParam = " -SnapShotStoragePool $SnapShotStp  " }
+                {  $SnapShotParam = " -SnapShotStoragePool `$ThisSnapShotStoragePool  " }
             
             $ThisPool = Get-HPOVStoragePool | where Name -eq $StoragePool
             if ($ThisPool -and $Name)   # Name must be defined and Storage Pool must exist
@@ -3470,7 +3697,12 @@ Param ([string]$OVStorageVolumeTemplateCSV ="D:\Oneview Scripts\OVStorageVolumeT
                     write-host -foreground Cyan "-------------------------------------------------------------"
 
                     $ApplConnectParam = " -applianceConnection `$global:ApplianceConnection "
-                    $SVTCmds = "New-HPOVStorageVolumeTemplate -Name $Name -description $Description -storagePool $StoragePool -capacity $Capacity  " `
+
+                    # Change for 3.10 library - StorageSystem is mandatory and StoragePool is object
+                    #$SVTCmds = "New-HPOVStorageVolumeTemplate -Name $Name -description $Description -storagePool $StoragePool -capacity $Capacity  " `
+                    #            + " $SnapShotParam $StorageSystemParam $SharedParam $provTypeParam $ApplConnectParam " 
+
+                    $SVTCmds = "New-HPOVStorageVolumeTemplate -Name $Name -description $Description -storagePool `$ThisPool -capacity $Capacity  " `
                                 + " $SnapShotParam $StorageSystemParam $SharedParam $provTypeParam $ApplConnectParam " 
                
                     $ThisSVT = Invoke-Expression $SVTCmds 
@@ -3577,7 +3809,10 @@ Param ([string]$OVStorageVolumeCSV,
             $DescParam        = ""
             $stsSystemParam   = ""
             $StsPoolParam     = ""
-            $VolTemplateParam = " -VolumeTemplate $VolTemplate " 
+            # Change to 3.10 library - Use object
+            $ThisVolTemplate  = get-hpovstorageVolumeTemplate -name $VolTemplate
+            #$VolTemplateParam = " -VolumeTemplate $VolTemplate "
+            $VolTemplateParam = " -VolumeTemplate `$ThisVolTemplate " 
         }
         else
         {
@@ -3593,11 +3828,17 @@ Param ([string]$OVStorageVolumeCSV,
             $StsSystemParam = ""
             if ($StsSystem)
             {
-                $StorageSystem = get-hpovStorageSystem | where{$_.credentials.ip_hostname -eq $StsSystem}
+                # Change to 3.10 library - Use Hostname instead of Credentials
+
+                #$StorageSystem = get-hpovStorageSystem | where {$_.credentials.ip_hostname -eq $StsSystem}
+                $StorageSystem = get-hpovStorageSystem | where hostname -eq $StsSystem
+                
                 if ($StorageSystem)
                 {
-                    $StorageSystemName = $StorageSystem.Name
-                    $StsSystemParam = "  -StorageSystem `$StorageSystemName " 
+                    # Change to 3.10 library - Use object
+                    #$StorageSystemName = $StorageSystem.Name
+                    #$StsSystemParam = "  -StorageSystem `$StorageSystemName " 
+                    $StsSystemParam = "  -StorageSystem `$StorageSystem " 
                 }
 
             }
@@ -3612,7 +3853,9 @@ Param ([string]$OVStorageVolumeCSV,
                  
                 if ( $ThisPool )
                 {
-                    $stsPoolParam = " -StoragePool `$StoragePool " 
+                    # Change to 3.10 library - Use object
+                    #$stsPoolParam = " -StoragePool `$StoragePool " 
+                    $stsPoolParam = " -StoragePool `$ThisPool " 
                 }
 
             }
@@ -3675,7 +3918,7 @@ Param ([string]$OVStorageVolumeCSV,
                     write-host -foreground Cyan "Creating Storage Volume $VolName...."
                     write-host -foreground Cyan "-------------------------------------------------------------"
 
-                    Invoke-Expression $SVCmds | Wait-HPOVTaskComplete
+                    Invoke-Expression $SVCmds | Wait-HPOVTaskComplete 
                 }
 
             } # end else Volume exists
@@ -3744,7 +3987,7 @@ Function Create-OVAddressPool {
         
         foreach ($AP in $ListofAddressPool)
         {
-            $PoolName      = $AP.PoolName 
+            $PoolName      = "'" + $AP.PoolName  + "'"
             $PoolType      = $AP.PoolType
             $RangeType     = $AP.RangeType 
             $StartAddress  = $AP.StartAddress
@@ -3753,7 +3996,7 @@ Function Create-OVAddressPool {
             $SubnetMask    = $AP.SubnetMask
             $Gateway       = $AP.Gateway
             $ListofDNS     = $AP.Dnsservers
-            $DomainName    = $AP.Domain
+            $DomainName    = $AP.DomainName
 
             
             if ($PoolType -eq "IPV4")  
@@ -3773,7 +4016,9 @@ Function Create-OVAddressPool {
                             if ($DomainName) { $CreateSubnetCmd += " -domain $DomainName "} 
                             
                             if ( $CreateSubnetCmd) 
-                                { $ThisSubnet = invoke-expression $CreateSubnetCmd } 
+                                { 
+                                    $ThisSubnet = invoke-expression $CreateSubnetCmd
+                                } 
                         ### ????
                         }
 
@@ -3825,6 +4070,7 @@ Function Create-OVAddressPool {
             if ($CreatePoolCmd)
             {
                 write-host -foreground CYAN "Creating Pool Range of type $PoolType"
+                
                 invoke-expression $CreatePoolCmd
             } 
             
@@ -3832,6 +4078,112 @@ Function Create-OVAddressPool {
         }
 
 
+}
+
+
+
+## -------------------------------------------------------------------------------------------------------------
+##
+##                     Function Create-OVDeploymentServer
+##
+## -------------------------------------------------------------------------------------------------------------
+
+Function Create-OVDeploymentServer ([string]$OVOSDeploymentCSV)
+{
+        if ( -not (Test-path $OVOSDeploymentCSV))
+        {
+            write-host "No file specified or file $OVOSDeploymentCSV does not exist."
+            return
+        }
+
+
+        # Read the CSV Users file
+        $tempFile = [IO.Path]::GetTempFileName()
+        type $OVOSDeploymentCSV | where { ($_ -notlike ",,,,*") -and ( $_ -notlike "#*") -and ($_ -notlike ",,,#*") } > $tempfile   # Skip blank line
+
+    
+        $ListofOSDeploymentServers = import-csv $tempfile
+
+        foreach ($OS in $ListofOSDeploymentServers)
+        {
+            $OSDeploymentServerName = $OS.DeploymentServerName
+            $OSDescription          = $OS.Description
+            $OSMgtNetwork           = $OS.ManagementNetwork
+            $OSImageStreamer        = $OS.ImageStreamerAppliance.Trim('"')
+
+            $ListofImageStreamer    = Get-HPOVImageStreamerAppliance | where ClusterUri -eq $NULL | where name -eq $OSImageStreamer 
+            $ThisOSDeploymentServer = Get-HPOVOSDeploymentServer | where name -eq $OSDeploymentServerName
+
+            if (  ($ListofImageStreamer -ne $NULL)  -and ($ThisOSDeploymentServer -eq $NULL) )  # if there is an ImageStreamer appliance and there  is no OS Deployment yet
+            {
+
+                $ApplianceNetConfig  = (Get-HPOVApplianceNetworkConfig).ApplianceNetworks
+
+                $IPAddress           = $ApplianceNetConfig.virtIpv4Addr
+                $IPSubnet            = $ApplianceNetConfig.ipv4Subnet
+                $IPGateway           = $ApplianceNetConfig.ipv4Gateway
+
+                $MaintIP1            = $ApplianceNetConfig.app1IPv4Addr
+                $MaintIP2            = $ApplianceNetConfig.app2IPv4Addr
+
+                $IPRange             =  Get-IPRange -ip $IPAddress -mask $IPSubnet
+
+                $SubnetID            = [string]$IPRange[0]
+
+                if ($MaintIP1 -and $MaintIP2)
+                {
+                    $ThisSubnetID        = get-HPOVAddressPoolSubnet | where networkID -eq $SubnetID
+                    if ( ($ThisSubnetID) -and ($ThisSubnetID.subnetmask -eq $IPSubnet) -and ($ThisSubnetID.gateway -eq $IPGateway) )
+                    {
+                        $SubnetIDuri    = $ThisSubnetID.uri
+                        $ThisMgtNetwork = Get-HPOVNetwork | where name -eq $OSMgtNetwork | where subneturi -eq $SubnetIDuri
+                        if ($ThisMgtNetwork)
+                        {
+                      
+                            #write-host " Results are: "
+                            #write-host " a/ Subnet ID $SubnetID"
+                            #write-host " b/ Managament network is $ThisMgtNetName "
+                            #write-host " c/ Maintenace IP: $MaintIP1 --- $MaintIP2 "
+                            #write-host " d/ Image Streamer are : $($ListofImageStreamer[0].Name) and  $($ListofImageStreamer[1].Name)"
+                    
+                    
+                            write-host -foreground Cyan "-------------------------------------------------------------"
+                            write-host -foreground Cyan "Adding OS Deployment Server  --> $OSDeploymentServerName ...."
+                            write-host -foreground Cyan "-------------------------------------------------------------"
+            
+                
+                            New-HPOVOSDeploymentServer -InputObject $ListofImageStreamer -Name $OSDeploymentServerName -Description $OSDescription -ManagementNetwork $ThisMgtNetwork | wait-HPOVTaskComplete | fl
+            
+
+                        }
+                        else
+                        {
+                            write-host -ForegroundColor YELLOW "Subnet $SubnetID is not asociated with any network used for Streamer. Skip adding OS deployment server...."
+                        }    
+          
+                    }
+                    else
+                    {
+                        write-host -ForegroundColor YELLOW " Either SubnetID $SubnetID does not exist `n Or Subnet $IPSubnet does not match with AddressPoolsubnet $SubnetID `n Or gateway $IPgateway does not match with AddressPoolsubnet $SubnetID"
+                        write-host -ForegroundColor YELLOW " Review addresspoolsubnet or appliance network settings and submit the request again....Skip adding OS Deployment Server.." 
+                    }
+
+                }
+                else
+                {
+                    write-host -ForegroundColor YELLOW "Maintenance IP addresses are not fully configured in the appliance. Skip adding OS deployment server...."
+                }
+
+            }
+    
+            else
+            {
+                write-host -ForegroundColor YELLOW " Either there is no Image Streamer in the frame or the OS Deployment $OSDeploymentServerName already exists...Skip adding OS Deployment Server.."
+            }
+
+
+
+    }
 }
 
 
@@ -3959,10 +4311,15 @@ Function Create-OVAddressPool {
         Create-OVStorageVolume -OVStorageVolumeCSV $OVStorageVolumeCSV -OVStorageVolumeTemplateCSV $OVStorageVolumeTemplateCSV 
         }
 
-      if ( ! [string]::IsNullOrEmpty($OVAddressPoolCSV) -and (Test-path $OVAddressPoolCSV) )
+    if ( ! [string]::IsNullOrEmpty($OVAddressPoolCSV) -and (Test-path $OVAddressPoolCSV) )
         {
         Create-OVAddressPool -OVAddressPoolCSV $OVAddressPoolCSV 
         }  
+
+    if ( ! [string]::IsNullOrEmpty($OVOSDeploymentCSV ) -and (Test-path $OVOSDeploymentCSV ) )
+        {
+        Create-OVDeploymentServer -OVOSDeploymentCSV $OVOSDeploymentCSV 
+        } 
 
     if ( ! [string]::IsNullOrEmpty($OVProfileSANStorageCSV) -and (Test-path $OVProfileSANStorageCSV) )
     {
@@ -3979,6 +4336,12 @@ Function Create-OVAddressPool {
     {
         #Create-OVProfileConnection -ProfileConnectionCSV $OVProfileConnectionCSV -profileName 'Template-BL460c-Gen8-1-Enc1'
     }
+
+
+    
+
+
+
     # Clean up
     write-host -foreground Cyan "-----------------------------------------"
     write-host -foreground Cyan " Disconnect the OneView appliance........"

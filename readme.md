@@ -166,6 +166,9 @@ Export-OVResources.ps1 is a PowerShell script that exports OV resources into CSV
    * SAN Storage connections
    * Server Profile Templates
    * Server Profiles
+   * IP addresses used by Synergy components
+   * WWWNN when there are FC networks in profile
+
 
 ## Syntax
 
@@ -277,5 +280,51 @@ Export-OVResources.ps1 is a PowerShell script that exports OV resources into CSV
 
 ```
 
+### To export WWNN
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVWWNNCSV c:\wwnn.csv
+
+```
+
+### To export IP addresses
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVipCSV c:\ip.csv
+
+```
 
 
+## Generate CSV files from Excel file
+
+The Import-OVResource.ps1 described above uses CSV files as parameter to create OneView resources.
+An administrator can leverage the Excel sheet templates provided in the pacakge to define OneView resources for their environment. He can generate CSV files by saving each sheet as CSV
+The Save-AsCSV.ps1 reads an Excel file and automatically generates CSV files per sheet. Those CSV files can be used for the Import-OVResources script.
+
+Note: This requires that you have Excel software on your local computer
+The syntax is described as below
+
+### To export Excel spreadsheet to CSV files
+
+```
+
+.\OV-Excel\Save-AsCSV -ExcelFile .\OneView.xlsx -CSVFolder Import_CSV
+
+```
+
+## Generate Excel OneView spreadsheet from CSV files
+
+Using the Export-OVResources.ps1 script, an administrator can save configuration of OneView resources through CSV files. He can then assemble CSV files into a single Excel spreadsheet to document configuration of OneView.
+The Write-ToExcel.ps1 script reads CSV files and automatically generates Excel spreadhseet based on a template provided in the package.
+
+Note: This requires that you have Excel software on your local computer
+The syntax is described as below
+
+### To generate Excel file from exported CSV files
+
+```
+.\OV-Excel\Write-ToExcel.ps1  -TemplateFullPath c:\OV-Excel\OSynergy-Template.xlsx -CSVFolder MyImportCSVFolder -ExcelName MyExcelName.Xlsx
+
+```

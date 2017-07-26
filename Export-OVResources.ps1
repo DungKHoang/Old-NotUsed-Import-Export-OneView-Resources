@@ -32,7 +32,9 @@
 ##         OVEnclosureGroupCSV                = path to the CSV file containing Enclosure Group
 ##         OVEnclosureCSV                     = path to the CSV file containing Enclosure definition
 ##         OVProfileConnectionCSV             = path to the CSV file containing Profile Connections definition
-##         OVProfileCSV                       = path to the CSV file containing Server Profile definition
+##         OVProfileCSV                       = path to the CSV file containing Server Profile definition         
+##         OVipCSV                            = path to the CSV file containing IP definition
+##
 ##         All                                = if present, the script will export all resources into CSv files ( default names will be used)
 ##
 ## History: 
@@ -45,10 +47,17 @@
 ##         May 2017 - v3.1   - Add AuthLoginDomain to Connect-HPOVMgmt  
 ##         June 2017         - Fix overwite of Profileconnection, Profile LOCAL storage and Profile SAN Storage by template
 ##                           - Check whether the Appliance is COmposer to extract IPv4 Address range
-##                         
+##         July 2017         - Review Export-OVEnclosureGroup function
+##                           - Review Export-OVUplinkset function and we don't sort UpLinkArray as it is linked to FCSpeedArray
+##                           - Add dummy column for Profile Header
+##                           - Add FrameCount,InterConnectBaySet in LIG header 
+##                           - Add Export WWNN, IP
+##                           - Review Export-OVEnclosure to remove FWiso, change FwInstall and add MonitoredOnly
+##                           - Update Export-OVethernetnetworks function to include UplinkSet and LogicalInterconnectgroup
+##
 ##   Version : 3.101
 ##
-##   Version : 3.101 - June 2017
+##   Version : 3.101 - July 2017
 ##
 ## Contact : Dung.HoangKhac@hpe.com
 ##
@@ -129,6 +138,9 @@
   .PARAMETER OVEnclosureCSV 
     Path to the CSV file containing Enclosure definition
 
+  .PARAMETER OVLogicalEnclosureCSV 
+    Path to the CSV file containing Logical Enclosure definition
+
   .PARAMETER OVProfileCSV 
     Path to the CSV file containing Server Profile definition
 
@@ -160,6 +172,12 @@
   .PARAMETER OVAddressPoolCSV
     Path to the CSV file containing Address Pool definition
 
+  .PARAMETER OVwwnnCSV 
+    Path to the CSV file containing WWnn definition 
+
+  .PARAMETER OVipCSV 
+    Path to the CSV file containing IP definition 
+
   .PARAMETER OneViewModule
     Module name for POSH OneView library.
 	
@@ -179,7 +197,7 @@
   
 ## -------------------------------------------------------------------------------------------------------------
 
-Param ( [string]$OVApplianceIP="10.254.13.212", 
+Param ( [string]$OVApplianceIP="10.254.13.202", 
         [string]$OVAdminName="Administrator", 
         [string]$OVAdminPassword="P@ssword1",
         [string]$OVAuthDomain = "local",
@@ -199,6 +217,8 @@ Param ( [string]$OVApplianceIP="10.254.13.212",
         [string]$OVUpLinkSetCSV ="",                                                      #D:\Oneview Scripts\OV-UpLinkSet.csv",
         [string]$OVEnclosureGroupCSV ="" ,                                                 #"\C:\OV30-Scripts\c7000-export\enclosuregroup.csv",
         [string]$OVServerCSV = "" ,
+        [string]$OVEnclosureCSV ="" ,
+        [string]$OVLogicalEnclosureCSV ="" ,  
 
         [string]$OVProfileCSV = "" ,                                                      #D:\Oneview Scripts\OV-Profile.csv",
         [string]$OVProfileTemplateCSV = "" ,                                               #D:\Oneview Scripts\OV-Profile.csv", 
@@ -208,41 +228,50 @@ Param ( [string]$OVApplianceIP="10.254.13.212",
         
 
         [string]$OVAddressPoolCSV ="",                                                    #D:\Oneview Scripts\OV-AddressPool.csv",
+        [string]$OVwwnnCSV        = "",
+        [string]$OVipCSV          = "",
 
-        [string]$OneViewModule = "HPOneView.300"
+        [string]$OneViewModule = "HPOneView.310"
 
         )
 
+$DoubleQuote    = '"'
+$CRLF           = "`r`n"
+$Delimiter      = "\"   # Delimiter for CSV profile file
+$Sep            = ";"   # USe for multiple values fields
+$SepChar        = '|'
+$CRLF           = "`r`n"
+$OpenDelim      = "={"
+$CloseDelim     = "}" 
+$CR             = "`n"
+$Comma          = ','
+$Equal          = '='
 
-$Delimiter = "\"   # Delimiter for CSV profile file
-$Sep       = ";"   # USe for multiple values fields
-$SepChar   = '|'
-$CRLF      = "`r`n"
-$OpenDelim = "={"
-$CloseDelim = "}" 
-$CR         = "`n"
-$Comma      = ','
+$HexPattern     = "^[0-9a-fA-F][0-9a-fA-F]:"
+
 
 # ------------------ Headers
 
-#$NSHeader          = "NetworkSet,NSdescription,NSTypicalBandwidth,NSMaximumBandwidth,Networks,Native"
+$NSHeader          = "NetworkSet,NSdescription,NSTypicalBandwidth,NSMaximumBandwidth,UplinkSet,LogicalInterConnectGroup,Networks,Native"
 
-$NetHeader           = "NetworkSet,NSTypicalBandwidth,NSMaximumBandwidth,NetworkName,Type,vLANID,vLANType,Subnet,TypicalBandwidth,MaximumBandwidth,SmartLink,PrivateNetwork,Purpose"
+$NetHeader           = "NetworkSet,NSTypicalBandwidth,NSMaximumBandwidth,UplinkSet,LogicalInterConnectGroup,NetworkName,Type,vLANID,vLANType,Subnet,TypicalBandwidth,MaximumBandwidth,SmartLink,PrivateNetwork,Purpose"
                        
 
 $FCHeader            = "NetworkName,Description,Type,FabricType,ManagedSAN,vLANID,TypicalBandwidth,MaximumBandwidth,LoginRedistribution,LinkStabilityTime"
                         
-$LigHeader           = "LIGName,InterConnectType,BayConfig,Redundancy,InternalNetworks,IGMPSnooping,IGMPIdleTimeout,FastMacCacheFailover,MacRefreshInterval,NetworkLoopProtection,PauseFloodProtection,EnhancedLLDPTLV,LDPTagging,SNMP,QOSConfiguration"
+$LigHeader           = "LIGName,FrameCount,InterConnectBaySet,InterConnectType,BayConfig,Redundancy,InternalNetworks,IGMPSnooping,IGMPIdleTimeout,FastMacCacheFailover,MacRefreshInterval,NetworkLoopProtection,PauseFloodProtection,EnhancedLLDPTLV,LDPTagging,SNMP,QOSConfiguration"
 
-$UplHeader           = "LIGName,UplinkSetName,UpLinkType,UpLinkPorts,Networks,NativeEthernetNetwork,EthMode,TagType,lacpTimer,FcSpeed"
+$UplHeader           = "LIGName,UplinkSetName,UpLinkType,UpLinkPorts,Networks,NativeEthernetNetwork,EthMode,lacpTimer,FcSpeed"
 
 $EGHeader            = "EnclosureGroupName,Description,LogicalInterConnectGroupMapping,EnclosureCount,IPv4AddressType,AddressPool,DeploymentNetworkType,DeploymentNetwork,PowerRedundantMode"
  
-$EncHeader           = "EnclosureGroupName,EnclosureName,OAIPAddress,OAAdminName,OAAdminPassword,LicensingIntent,FWBaseLine,FWiso,FWManaged" 
-                        
+$EncHeader           = "EnclosureGroupName,EnclosureName,OAIPAddress,OAAdminName,OAAdminPassword,LicensingIntent,FWBaseLine,FwInstall,MonitoredOnly" 
+
+$LogicalEncHeader    = "LogicalEnclosureName,Enclosure,EnclosureGroup,FWBaseLine,FWInstall"
+
 $ServerHeader        = "ServerName,AdminName,AdminPassword,Monitored,LicensingIntent"
 
-$ProfileHeader       = "ProfileName,Description,AssignmentType,Enclosure,EnclosureBay,Server,ServerTemplate,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics" 
+$ProfileHeader       = "ProfileName,Description,AssignmentType,Enclosure,EnclosureBay,Server,ServerTemplate,NotUsed,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics" 
 
 $PSTHeader           = "ProfileTemplateName,Description,ServerProfileDescription,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics" 
 
@@ -256,8 +285,6 @@ $StVolTemplateHeader = "TemplateName,Description,StoragePool,StorageSystem,Capac
 
 $StVolumeHeader      = "VolumeName,Description,StoragePool,StorageSystem,VolumeTemplate,Capacity,ProvisionningType,Shared"
 
-# OLD$ConnectionHeader   = "ServerProfileName,ConnectionID,ConnectionType,NetworkName,PortID,RequestedBandwidth,BootPriority,ConnectionMACAddress,ConnectionWWNN,ConnectionWWPN,ArrayWWPN,LunID"
-
 $ConnectionHeader    = "ServerProfileName,ConnectionName,ConnectionID,NetworkName,PortID,RequestedBandwidth,Bootable,BootPriority,UserDefined,ConnectionMACAddress,ConnectionWWNN,ConnectionWWPN,ArrayWWPN,LunID"
 
 $LOCALStorageHeader  = "ProfileName,EnableLOCALstorage,ControllerMode,ControllerInitialize,LogicalDisks,Bootable,DriveType,RAID,NumberofDrives,MinDriveSize,MaxDriveSize" 
@@ -265,6 +292,10 @@ $LOCALStorageHeader  = "ProfileName,EnableLOCALstorage,ControllerMode,Controller
 $SANStorageHeader    = "ProfileName,EnableSANstorage,HostOSType,VolumeName,Lun"        
 
 $AddressPoolHeader   = "PoolName,PoolType,RangeType,StartAddress,EndAddress,NetworkID,SubnetMask,Gateway,DnsServers,DomainName"
+
+$wwnnHeader          = "BayName,WWNN"
+
+$IPHeader            = "Location,Type,BayNumber,ipAddress"
 
 $WarningText = @"
 ***WarninG***
@@ -370,9 +401,41 @@ Function Export-OVNetwork ([string]$OutFile )
         {
             if ($netset.NetworkUris -contains $net.uri)
             {
-                $nsName += $netset.name.Trim() + $sepchar
+                $Thisnetsetname = $netset.name.Trim()
+                $nsName += $Thisnetsetname + $sepchar
                 $nspBW  += ( 1/1000 * $netset.TypicalBandwidth).ToString() + $sepchar
                 $nsmBW  += ( 1/1000 * $netset.MaximumBandwidth).ToString() + $sepchar
+
+                
+                # ---- Get information on Uplinkset and LogicalInterconnectGroup where a this uplinkset may belong to
+
+                $ThisUplinkSet  = ""
+                $ThisLIG        = ""
+                if (Get-HPOVServerProfile)
+                {
+                    $ConnectionList = Get-HPOVServerProfileConnectionList 
+                    if ($ConnectionList.Network -contains $Thisnetsetname)   # network set used in server profile
+                    {
+                        $ListofLIGs = Get-HPOVLogicalInterconnectGroup
+                        if ($ListofLIGs)
+                        {
+                            foreach ($LIG in $ListofLIGs)
+                            {
+                                foreach ($UL in $LIG.UpLinkSets)
+                                {
+                                    $res = $UL.networkuris -contains $net.uri
+                                    if ($res)
+                                    {
+                                        $ThisUplinkSet = $UL.name
+                                        $ThisLIG       = $LIG.Name
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+               
             }
         }
         # Remove last sepchar
@@ -386,9 +449,16 @@ Function Export-OVNetwork ([string]$OutFile )
         # ----------------------- Construct Network information
         $name        = $net.name
         $type        = $net.type.Split("-")[0]   # Value is like ethernet-v30network
-        $vLANID      = $net.vLanId
+        
         $vLANType    = $net.ethernetNetworkType
-       
+        $vLANID      = ""
+        if ($vLAnType -eq 'Tagged')
+        {
+            $vLANID      = $net.vLanId
+            if ($vLANID -lt 1)
+                { $vLANID = "" }
+        }
+
 
         $typicalBW   = (1/1000 * $net.DefaultTypicalBandwidth).ToString()    
         $maxBW       = (1/1000 * $net.DefaultMaximumBandwidth).ToString()   
@@ -399,20 +469,21 @@ Function Export-OVNetwork ([string]$OutFile )
         # Valid only for Synergy Composer
         
 
-			if ($Global:applianceconnection.ApplianceType -eq 'Composer')
-			{
-                $ThisSubnet = Get-hPOVAddressPoolSubnet | where URI -eq $net.subnetURI
-                if ($ThisSubnet)
-                    { $subnet = $ThisSubnet.NetworkID }
-                else 
-                    { $subnet = "" }
-            }
+        if ($Global:applianceconnection.ApplianceType -eq 'Composer')
+        {
+            $ThisSubnet = Get-hPOVAddressPoolSubnet | where URI -eq $net.subnetURI
+            if ($ThisSubnet)
+                { $subnet = $ThisSubnet.NetworkID }
             else 
-                { $subnet = ""}
+                { $subnet = "" }
+        }
+        else 
+        { $subnet = ""}
             
         
-                       #"NetworkSet,NSTypicalBandwidth,NSMaximumBandwidth,Name,Type,vLANID,vLANType,Subnet,TypicalBandwidth,MaximumBandwidth,SmartLink,PrivateNetwork,Purpose"
-        $ValuesArray += "$nsName,$nspBW,$nsmBW,$name,$type,$vLANID,$vLANType,$subnet,$typicalBW,$MaxBW,$SmartLink,$Private,$purpose" + $CR
+        
+                       #"NetworkSet,NSTypicalBandwidth,NSMaximumBandwidth,UplinkSet,LogicalInterConnectGroup,Name,Type,vLANID,vLANType,Subnet,TypicalBandwidth,MaximumBandwidth,SmartLink,PrivateNetwork,Purpose"
+        $ValuesArray += "$nsName,$nspBW,$nsmBW,$ThisUplinkSet,$ThisLIG,$name,$type,$vLANID,$vLANType,$subnet,$typicalBW,$MaxBW,$SmartLink,$Private,$purpose" + $CR
     }
 
     if ($ValuesArray -ne $NULL)
@@ -530,11 +601,39 @@ Function Export-OVNetworkSet ([string]$OutFile)
         $nsMaxBW       = $ns.MaximumBandwidth /1000
         $nsnativenet   = Get-NamefromUri -uri $ns.NativeNetworkUri
 
+        # ---- Get information on Uplinkset and LogicalInterconnectGroup where a this uplinkset may belong to
+
+        $ThisUplinkSet  = ""
+        $ThisLIG        = ""
+        if (Get-HPOVServerProfile)
+        {
+            $ConnectionList = Get-HPOVServerProfileConnectionList 
+            if ($ConnectionList.Network -contains $nsname)   # network set used in server profile
+            {
+                $ListofLIGs = Get-HPOVLogicalInterconnectGroup
+                if ($ListofLIGs)
+                {
+                    foreach ($LIG in $ListofLIGs)
+                    {
+                        foreach ($UL in $LIG.UpLinkSets)
+                        {
+                            $res = $UL.networkuris | where { $ListofNeturis -contains $_}
+                            if ($res)
+                            {
+                                $ThisUplinkSet = $UL.name
+                                $ThisLIG       = $LIG.Name
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
 
         # ---- Added to array
-                            #"NetworkSet,NSdescription,NStypicalbandwidth,NSmaximubandwidth,Networks,Native,"
-        $ValuesArray     +=  "$nsname,$nsdescription,$nstypicalBW,$nsMaxBW,$Networks,$nsnativenet" + $CR
+                            #"NetworkSet,NSdescription,NStypicalbandwidth,NSmaximubandwidth,UplinkSet,LogicalInterConnectGroup,Networks,Native,"
+        $ValuesArray     +=  "$nsname,$nsdescription,$nstypicalBW,$nsMaxBW,$ThisUplinkSet,$ThisLIG,$Networks,$nsnativenet" + $CR
 
 
        
@@ -612,8 +711,16 @@ Function Export-OVLogicalInterConnectGroup ([string]$OutFile)
              $EnableLDPTagging      = if ($eLDPTagging)  { 'Yes' } else { 'No' } 
 
             $Telemetry              = $LigObj.telemetryConfiguration
-            $sampleCount            = $Telemetry.sampleCount
-            $sampleInterval         = $Telemetry.sampleInterval
+             $sampleCount           = $Telemetry.sampleCount
+             $sampleInterval        = $Telemetry.sampleInterval
+            
+            if ($global:applianceconnection.ApplianceType -eq 'Composer')
+            {
+                $FrameCount             = $LigObj.EnclosureIndexes.Count
+                $InterconnectBaySet     = $LigObj.interconnectBaySet
+            }
+            else 
+            {   $FrameCount = $InterconnectBaySet = ""}
 
             # ----------------------------
             #     Find Internal networks
@@ -735,9 +842,9 @@ Function Export-OVLogicalInterConnectGroup ([string]$OutFile)
 
  
 
-                                 #LIGName,InterConnectType,BayConfig,Redundancy,InternalNetworks,IGMPSnooping,IGMPIdleTimeout,FastMacCacheFailover,MacRefreshInterval,NetworkLoopProtection,PauseFloodProtection,EnhancedLLDPTLV,LDPTagging,SNMP,QOSConfiguration"  
-            $ValuesArray      += "$LIGName,$FabricModuleType,$BayConfig,$RedundancyType,$InternalNetworks,$IGMPSnooping,$IGMPIdleTimeout,$FastMacCacheFailover,$MacRefreshInterval,$NetworkLoopProtection,$PauseFloodProtection,$EnableRichTLV,$EnableLDPTagging,," +$CR 
-            
+                                 #LIGName,FrameCount,InterConnectBaySet,InterConnectType,BayConfig,Redundancy,InternalNetworks,IGMPSnooping,IGMPIdleTimeout,FastMacCacheFailover,MacRefreshInterval,NetworkLoopProtection,PauseFloodProtection,EnhancedLLDPTLV,LDPTagging,SNMP,QOSConfiguration"  
+            $ValuesArray      += "$LIGName,$FrameCount,$InterConnectBaySet,$FabricModuleType,$BayConfig,$RedundancyType,$InternalNetworks,$IGMPSnooping,$IGMPIdleTimeout,$FastMacCacheFailover,$MacRefreshInterval,$NetworkLoopProtection,$PauseFloodProtection,$EnableRichTLV,$EnableLDPTagging,," +$CR 
+ 
         }
 
         if ($ValuesArray -ne $NULL)
@@ -781,8 +888,8 @@ Function Export-OVUplinkSet([string]$OutFile)
                 $UpLinkType     = $Upl.networkType
                 $EthMode        = $Upl.Mode
 
-                $NativenetUri   = $Upl.NativeUri
-                $netTagtype     = $Upl.ethernetNetworkType
+                $NativenetUri   = $Upl.NativeNetworkUri
+                #$netTagtype     = $Upl.ethernetNetworkType
 
                 $FCSpeed        = 'Auto' # ??
                 $PrimPort       = $Upl.PrimaryPort # ??
@@ -799,7 +906,7 @@ Function Export-OVUplinkSet([string]$OutFile)
                 $NativeNetwork = "" 
                 if ($NativeNetUri)
                     { $Nativenetwork = Get-NamefromUri -uri $NativenetUri}
-
+            
 
                 # ----------------------------
                 #     Find networks
@@ -875,7 +982,7 @@ Function Export-OVUplinkSet([string]$OutFile)
                                     $s               = $Logicalport.DesiredSpeed
                                     $s               = if ($s) { $s } else {'Auto'}
                                     $SpeedArray      += $s.TrimStart('Speed').TrimEnd('G')
-
+                                    # Don't sort UpLinkArray as it is linked to FCSpeedArray
                                 }
                                 else  # Synergy Frames or C7000
                                 {
@@ -901,8 +1008,8 @@ Function Export-OVUplinkSet([string]$OutFile)
                 }
             
 
-                               #"LIGName,UplinkSetName,plinkType,UpLinkPorts,Networks,NativeEthernetNetwork,EthMode,TagType,lacpTimer,FcSpeed" 
-                $ValuesArray += "$LIGName,$UplinkSetName,$UplinkType,$UpLinkPorts,$Networks,$NativeEthernetNetwork,$EthMode,$netTagType,$lacptimer,$FCSpeed" +$CR
+                               #"LIGName,UplinkSetName,plinkType,UpLinkPorts,Networks,NativeEthernetNetwork,EthMode,lacpTimer,FcSpeed" 
+                $ValuesArray += "$LIGName,$UplinkSetName,$UplinkType,$UpLinkPorts,$Networks,$NativeNetwork,$EthMode,$lacptimer,$FCSpeed" +$CR
             }
 
         }
@@ -949,107 +1056,130 @@ Function Export-OVEnclosureGroup([string]$OutFile)
               $EGDeployNetwork   = if ($DeploySettings.deploymentNetworkUri) { Get-NamefromUri -uri $DeploySettings.deploymentNetworkUri}
 
             $EGipV4AddressType   = $EG.ipAddressingMode
-            $ipRangeUris         = $EG.ipRangeUris   
-              if ($ipRangeUris)
-                { 
-                    $IpPools = @()
-                    foreach ($RangeUri in $ipRangeUris)
-                    {
-                        $IpPools += Get-NamefromUri -uri $RangeUri 
-                    }
-                    [Array]::sort($IpPools)
-                    $EGAddressPool = $IpPools -join $Sepchar
+            
+            if ($EGipV4AddressType -eq 'ipPool')
+            {
+                $ipRangeUris         = $EG.ipRangeUris   
+                if ($ipRangeUris)
+                    { 
+                        $IpPools = @()
+                        foreach ($RangeUri in $ipRangeUris)
+                        {
+                            $IpPools += Get-NamefromUri -uri $RangeUri 
+                        }
+                        [Array]::sort($IpPools)
+                        $EGAddressPool = $IpPools -join $Sepchar
 
-               }
+                }
+            }
+            else 
+            {
+                $EGAddressPool = ""
+            }
 
-                if ($global:applianceconnection.ApplianceType -eq 'Composer')
+            if ($global:applianceconnection.ApplianceType -eq 'Composer')
+            {
+                $result              = $true
+                $ListofICBayMappings = $EG.InterConnectBayMappings
+                
+                # Check whether there are differenct ICs in different enclosures
+                # We check the EnclosureIndex here. 
+                # If those values are $NULL, it means either there is only 1 enclosure or all enclosures have the same ICmappings
+                # If one of the values is not $NULL, there are differences of ICs in enclosures
+                #
+                foreach ($IC in $ListofICBayMappings)
+                    { $result = $result -and ($IC.EnclosureIndex -eq $NULL) }
+
+                $EnclosureCount   = $EG.EnclosureCount
+                
+                $Frames = $ListofICNames = ""
+                if ($result)
                 {
+                    # Either there is only 1 enclosure or multiple enclosures with the same LIG config
 
-                    $AssociatedLIG       = $EG.associatedLogicalInterconnectGroups
-                    if ( $EG.EnclosureCount -eq 1)
+                    for ($j=1 ; $j -le 3 ; $j++ )  # Just use the first 3 Interconnect Bay
                     {
-                        if ($AssociatedLIG -is [system.array])
-                        {  # 1 Frame - Multiple LIGs
-                            $ICArray = @()
-                            foreach ($LigURI in $AssociatedLIG)
-                                { $ICArray += Get-NamefromUri -uri $LigURI}
-                            $EGLIGMapping = "Frame1 = " + $($ICArray -join $Sep)
-
+                        $ThisIC = $ListofICBayMappings | where InterConnectBay -eq $j
+                        if ($ThisIC)
+                        {
+                            $ThisName       = Get-NamefromUri -uri $ThisIC.logicalInterconnectGroupURI
+                            $ListofICNames += "$ThisName$Sep"
                         }
                         else 
-                        {   # 1 frame - 1 LIG
-                            $EGLIGMapping    = Get-NamefromUri -uri $AssociatedLIG    
+                        {
+                            $ListofICNames += $Sep   
+                        }
+                    }
+
+                    for ($i=1 ; $i -le $EnclosureCount ; $i++)
+                    {
+                        $Frames += "Frame$i=$($ListofICNames.TrimEnd($Sep))" + $SepChar
+                    }
+                    $Frames = $Frames.TrimEnd($SepChar)
+                    
+                }
+                else 
+                {
+                    # Multiple enclosures with different LIG
+                    
+                    $ListofICBayMappings = $ListofICBayMappings | sort enclosureindex,InterconnectBay
+
+                    for ($i=1 ; $i -le $EnclosureCount ; $i++)
+                    {
+                        $FramesperEnclosure  = ""
+                        $ListofICNames       = ""
+                        for ($j=1 ; $j -le 2; $j++)
+                        {
+                            $ThisIC = $ListofICBayMappings | where {($_.EnclosureIndex -eq $i) -and ($_.InterConnectBay -eq $j)}
+                            if ($ThisIC)
+                            {
+                                $ThisName       = Get-NamefromUri -uri $ThisIC.logicalInterconnectGroupURI
+                                $ListofICNames += "$ThisName$Sep"
+                            }
+                            else 
+                            {
+                                $ListofICNames += $Sep  
+                            }
+                        }
+                        # Last IC in Bay 3
+                        $ThisIC = $ListofICBayMappings | where {($_.logicalInterconnectGroupURI) -and ($_.InterconnectBay -eq 3)}
+                        if ($ThisIC)
+                        {
+                            $ThisName       = Get-NamefromUri -uri $ThisIC.logicalInterconnectGroupURI
+                            $ListofICNames += "$ThisName$Sep"
                         }
                         
+                        $FramesperEnclosure += "Frame$i=$($ListofICNames.TrimEnd($Sep))" + $SepChar
+                        $Frames             += $FramesperEnclosure
                     }
-                    else 
-                    {
-                        # Multiple frames
-                        $ICArray = @()
-                        for ($i=1; $i -le $EG.EnclosureCount; $i++)
-                        {
-                            $FrameIndex      = "Frame$i"
-                            $ListofAssoLIGs  = $EG.InterConnectBayMappings | where EnclosureIndex -eq $i
 
+                    
 
-                            if ($ListofAssoLIGs)
-                            {
-                                $AL = $ListofAssoLIGs[0]
-                                $ICName      = Get-NamefromUri -uri $AL.LogicalInterConnectGroupURI
-                                $ICArray    += "$FrameIndex = $ICName"
-                            }
-                        }
-
-                        #--- Process Associated LIGs with EnclosureIndex NULL
-                        ##   In this scenario, all frames/enclsoures will have this LIG
-                        $ListofAssoLIGsNullIndex = $EG.InterConnectBayMappings | where EnclosureIndex -eq $NULL
-                        if ($ListofAssoLIGsNullIndex)
-                        {
-                            $AL = $ListofAssoLIGsNullIndex[0]
-                            $ICName      = Get-NamefromUri -uri $AL.LogicalInterConnectGroupURI
-                            for ($i=1; $i -le $EG.EnclosureCount; $i++)
-                            {
-                                $ThisFrameIndex  = "Frame$i"
-                                $Found = $false
-                                for($j=0; $j -lt $ICArray.Count; $j++)
-                                {
-                                    if ($ICArray[$j] -like "$ThisFrameIndex*")
-                                    {
-                                        $ICArray[$j] += $Sep + $ICName
-                                        $Found = $true
-                                    }
-                                }
-                                if (-not $Found)
-                                {
-                                    $ICArray += "$ThisFrameIndex = $ICName"
-                                }
-
-                            }
-                        }
-                        [Array]::Sort($ICArray)
-                        $delimiter = " $SepChar "
-                        $EGLigMapping =  $ICArray -join $Delimiter    
-                    }
                 }
-                else # C7000 here
+
+                $EGLIGMapping = $Frames.TrimEnd($SepChar) 
+                            
+               
+            }
+            else # C7000 here
+            {
+                
+                $ListofICMappings = $EG.InterconnectBayMappings
+                $LIGMappingArray = @()
+
+                foreach ($LIC in $ListofICMappings)
                 {
-                   
-                    $ListofICMappings = $EG.InterconnectBayMappings
-                    $LIGMappingArray = @()
-
-                    foreach ($LIC in $ListofICMappings)
+                    $ThisLIGUri = $LIC.logicalInterconnectGroupURI
+                    if ($ThisLIGUri)
                     {
-                        $ThisLIGUri = $LIC.logicalInterconnectGroupURI
-                        if ($ThisLIGUri)
-                        {
-                            $LIGName          = Get-NamefromUri -Uri $ThisLIGUri
-                            $LigICBay         = $LIC.interconnectBay
-                            $LIGMappingArray += "$LigICBay=$LIGName"
-                        }
+                        $LIGName          = Get-NamefromUri -Uri $ThisLIGUri
+                        $LigICBay         = $LIC.interconnectBay
+                        $LIGMappingArray += "$LigICBay=$LIGName"
                     }
-                  
-                    $EGLIGMapping = $LIGMappingArray -join $Sepchar   
                 }
+                
+                $EGLIGMapping = $LIGMappingArray -join $Sepchar   
+            }
            
 
             #                 EnclosureGroupName,Description,LogicalInterConnectGroupMapping,EnclosureCount,IPv4AddressType,AddressPool,DeploymentNetworkType,DeploymentNetwork,PowerRedundantMode
@@ -1091,22 +1221,24 @@ Function Export-OVEnclosure([string]$OutFile)
             $EncFWBaseline = $Enc.fwBaselineName
             if ($EncFWBaseline)
             {
-                $EncFWBaseline = $EncFWBaseLine.split(',')[0]
-                $uri           = $Enc.fwBaselineUri
-                $FWuri         = if ($uri.Startswith('/')) { send-hpovrequest $uri } else {""}
-                $EncFwIso  = $FWUri.isoFileName
-                $EncFWManaged  = if ($Enc.isFwManaged) {'Yes'} else {'No'}  
+                $EncFWBaseline      = $EncFWBaseLine.split(',')[0]
+                $uri                = $Enc.fwBaselineUri
+                $FWuri              = if ($uri.Startswith('/')) { send-hpovrequest $uri } else {""}
+                $EncFwIso           = $FWUri.isoFileName
+                $EncFwInstall       = if ($Enc.isFWManaged) {'Yes'} else {'No'}  
             }
-            else { $EncFWManaged = 'No' }
+            else { $EncFwInstall = 'No' }
    
 
             $EncOAIP       = $Enc.activeOaPreferredIP
             $EncOAUser     = "***Info N/A***"
             $EncOAPassword = "***Info N/A***"
 
-                             #EnclosureGroupName,EnclosureName,OAIPAddress,OAAdminName,OAAdminPassword,LicensingIntent,FWBaseLine,FWiso,FWManaged" 
+            $EncState      = if ($Enc.State -eq 'Monitored') {'Yes'} else {'No'}
 
-            $ValuesArray  += "$EGName,$EncName,$EncOAIP,$EncOAUser,$EncOAPassword,$EncLicensing,$EncFWBaseLine,$EncFwIso,$EncFWManaged" + $CR  	
+                             #EnclosureGroupName,EnclosureName,OAIPAddress,OAAdminName,OAAdminPassword,LicensingIntent,FWBaseLine,FwInstall,MonitoredOnly" 
+
+            $ValuesArray  += "$EGName,$EncName,$EncOAIP,$EncOAUser,$EncOAPassword,$EncLicensing,$EncFwIso,$EncFwInstall,$EncState" + $CR  	
 
         }
 
@@ -1114,6 +1246,54 @@ Function Export-OVEnclosure([string]$OutFile)
         {
             $a = New-Item $OutFile  -type file -force
             Set-content -Path $OutFile -Value $EncHeader
+            add-content -Path $OutFile -value $ValuesArray
+        }
+
+    }
+
+}
+
+
+## -------------------------------------------------------------------------------------------------------------
+##
+##                     Function Export-OVLogicalEnclosure
+##
+## -------------------------------------------------------------------------------------------------------------
+
+Function Export-OVLogicalEnclosure([string]$OutFile)
+{
+    $ValuesArray            = @()
+    $ListofLogicalEncs      = Get-hpovLogicalEnclosure | sort Name
+
+    if ($ListofLogicalEncs -ne $NULL)
+    {
+        foreach ($Enc in $ListofLogicalEncs)
+        {
+            $EncName       = $Enc.Name
+            $EGName        = Get-NamefromUri $Enc.enclosureGroupUri
+
+            $EGenclosures  = ""  
+            foreach ($encuri in $enc.EnclosureUris)
+            {
+                $EGenclosures += "$(Get-NamefromUri -uri $encuri)$Sep"
+                
+            }
+            $EGenclosures  = $EGenclosures.TrimEnd($Sep)
+
+            if ( $Enc.firmware.firmwareBaselineUri)
+            {  $EncFWBaseline = get-namefromURI -uri $Enc.firmware.firmwareBaselineUri }
+
+            $EncFWInstall = if ($Enc.firmware.forceInstallFirmware) {'Yes'} else {'No'}
+
+                             #LogicalEnclosureName,Enclosure,EnclosureGroup,FWBaseLine,FWInstall								
+            $ValuesArray  += "$EncName,$EGenclosures,$EGName,$EncFWBaseLine,$EncFWInstall" + $CR  	
+
+        }
+
+        if ($ValuesArray -ne $NULL)
+        {
+            $a = New-Item $OutFile  -type file -force
+            Set-content -Path $OutFile -Value $LogicalEncHeader
             add-content -Path $OutFile -value $ValuesArray
         }
 
@@ -1648,9 +1828,8 @@ Function Export-ProfileOrTemplate(
 
             if ($createProfile)
             {
-                                #ProfileTemplateName,Description,ServerProfileDescription,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics"             
-                            #ProfileName,Description,AssignmentType,Enclosure,EnclosureBay,Server,ServerTemplate,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics
-                $Value        = "$Name,$Desc,$AssignType,$EncName,$EncBay,$server,$ServerTemplate,$ServerHWType,$EncGroup,$Affinity,$FWEnable,$FWBaseline,$FWMode,$FWINstall,$BIOSSettings,$BootOrder,$BootMode,$PXEBootPolicy,$MacType,$WWNType,$SNType,$HideUnusedFlexNics" 
+                                #ProfileName,Description,AssignmentType,Enclosure,EnclosureBay,Server,ServerTemplate,,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics
+                $Value        = "$Name,$Desc,$AssignType,$EncName,$EncBay,$server,$ServerTemplate,,$ServerHWType,$EncGroup,$Affinity,$FWEnable,$FWBaseline,$FWMode,$FWINstall,$BIOSSettings,$BootOrder,$BootMode,$PXEBootPolicy,$MacType,$WWNType,$SNType,$HideUnusedFlexNics" 
 
             }
             else 
@@ -2031,6 +2210,124 @@ Function Export-OVAddressPool([string]$OutFile)
 }
 
 
+## -------------------------------------------------------------------------------------------------------------
+##
+##                     Function Export-OVWWNN
+##
+## -------------------------------------------------------------------------------------------------------------
+
+Function Export-OVwwnn ([string]$OutFile)
+{    
+    $ValuesArray = @()
+    
+    if (Get-HPOVServerProfile)
+    {
+        $ListofFCConnections = Get-HPOVServerProfileConnectionList 
+        foreach ( $L in $ListofFCConnections)
+        {
+            if ($L.wwnn -match $HexPattern)
+            {
+                $BayName = $L.ServerProfile
+                $wwnn    = $L.wwnn
+                $PortId  = $L.PortId
+                $PortId  = $PortId.Split($space)[-1] -replace ":", ""
+                $BayName = $BayName + "_" + $PortId
+
+                $ValuesArray      += "$BayName,$wwnn"
+            }      
+        } 
+
+
+
+
+        if ($ValuesArray -ne $NULL)
+        {
+            $a= New-Item $OutFile  -type file -force
+            Set-content -Path $OutFile -Value $wwnnHeader
+            Add-content -path $OutFile -Value $ValuesArray
+
+        }
+    }
+    else 
+    {
+        write-host -ForegroundColor YELLOW "There is no Server profile. Skip generating WWNN csv file...."    
+    }
+}
+
+## -------------------------------------------------------------------------------------------------------------
+##
+##                     Function Export-OVipAddress
+##
+## -------------------------------------------------------------------------------------------------------------
+
+Function Export-OVipAddress ([string]$OutFile)
+{    
+    $ValuesArray = @()
+    
+    $AppNetwork  = (Get-HPOVApplianceNetworkConfig).ApplianceNetworks
+
+    $Type        = "Appliance"
+    $appName     = $appNetwork.hostname
+    $appIP       = $appNetwork.virtIPv4addr
+    $app1IP      = $appNetwork.app1Ipv4Addr  
+    $app2IP      = $appNetwork.app2Ipv4Addr  
+
+    $ValuesArray      += "$appName,$Type,,$appIP"
+    $ValuesArray      += "$appName,$Type,Maintenance IP address 1,$app1IP"
+    $ValuesArray      += "$appName,$Type,Maintenance IP address 2,$app2IP"
+    $ValuesArray      += ",,,"
+
+    ## ------------
+    ##  Enclosures : IP from Device Bays and InterConnect Bays
+    ## -------------
+    $ListofEnclosures = Get-HPOVEnclosure
+    foreach ($Encl in $ListofEnclosures)
+    {
+        $enclName         = $Encl.Name
+
+        ## Device Bay IP
+        $Type             = "Device Bay"
+        $ListofDeviceBays = $Encl.DeviceBays
+        foreach ($Bay in $ListofDeviceBays)
+        {
+            $BayNo        = $Bay.bayNumber
+            $ipv4Setting  = $Bay.ipv4Setting
+            if ($ipv4Setting)
+            {  
+                $BayIP     = $Bay.ipv4Setting.ipAddress
+                $ValuesArray  += "$enclName,$type,$BayNo,$BayIP"
+            }
+            
+        }
+
+        ## InterConnect Bay IP
+        $Type                   = "InterConnect Bay"
+        $ListofInterconnectBays = $Encl.InterconnectBays
+        foreach ($IC in $ListofInterConnectBays)
+        {
+            
+            $ICBayNo     =  $IC.bayNumber 
+            $ipv4Setting =  $IC.ipv4Setting
+            if ($ipv4Setting)
+            {   
+                $ICIP          =  $IC.ipv4Setting.ipAddress 
+                $ValuesArray  += "$enclName,$type,$ICBayNo,$ICIP"
+            }
+        }
+
+        ## Next enclosure - Adding a blank line to the output file
+        $ValuesArray += ",,,"
+    }
+    if ($ValuesArray -ne $NULL)
+    {
+        $a= New-Item $OutFile  -type file -force
+        Set-content -Path $OutFile -Value $IPHeader
+        Add-content -path $OutFile -Value $ValuesArray
+
+    }
+
+}
+
 # -------------------------------------------------------------------------------------------------------------
 #
 #                  Main Entry
@@ -2078,6 +2375,7 @@ Function Export-OVAddressPool([string]$OutFile)
             
             $OVEnclosureGroupCSV                   = "EnclosureGroup.csv"
             $OVEnclosureCSV                        = "Enclosure.csv"
+            $OVLogicalEnclosureCSV                 = "LogicalEnclosure.csv"
             $OVServerCSV                           = "Server.csv"
 
             $OVProfileCSV                          = "Profile.csv"
@@ -2086,7 +2384,7 @@ Function Export-OVAddressPool([string]$OutFile)
             $OVProfileLOCALStorageCSV              = "ProfileLOCALStorage.csv"
             $OVProfileSANStorageCSV                = "ProfileSANStorage.csv"
 
-            $OVProfileTemplateConnectionCSV        = "ProfileTemplateconnection.csv"
+            $OVProfileTemplateConnectionCSV        = "ProfileTemplateConnection.csv"
             $OVProfileTemplateLOCALStorageCSV      = "ProfileTemplateLOCALStorage.csv"
             $OVProfileTemplateSANStorageCSV        = "ProfileTemplateSANStorage.csv"
 
@@ -2096,6 +2394,9 @@ Function Export-OVAddressPool([string]$OutFile)
             $OVStorageVolumeCSV                    = "StorageVolume.csv"
             
             $OVAddressPoolCSV                      = "AddressPool.CSV"
+            $OVwwnnCSV                             = "Wwnn.CSV"
+            $OVipCSV                               = "ip.CSV"
+                  
        }  
         
 
@@ -2168,6 +2469,11 @@ Function Export-OVAddressPool([string]$OutFile)
             Export-OVEnclosure      -OutFile $OVEnclosureCSV
        } 
 
+       if ($OVLogicalEnclosureCSV)
+       { 
+            write-host -ForegroundColor Cyan "Exporting LogicalEnclosure resources to CSV file --> $OVLogicalEnclosureCSV"
+            Export-OVLogicalEnclosure      -OutFile $OVLogicalEnclosureCSV
+       } 
        if ($OVServerCSV)
        { 
             write-host -ForegroundColor Cyan "Exporting Server resources to CSV file --> $OVServerCSV"
@@ -2230,6 +2536,19 @@ Function Export-OVAddressPool([string]$OutFile)
             write-host -ForegroundColor Cyan "Exporting Address Pools to CSV file --> $OVAddressPoolCSV "
             Export-OVAddressPool      -Outfile $OVAddressPoolCSV            
        }
+        
+       if (-not [string]::IsNullOrEmpty($OVwwnnCSV))
+       { 
+            write-host -ForegroundColor Cyan "Exporting WWnn to CSV file --> $OVWwnnCSV "
+            Export-OVwwnn     -Outfile $OVWwnnCSV            
+       }  
+
+       if (-not [string]::IsNullOrEmpty($OVipCSV))
+       { 
+            write-host -ForegroundColor Cyan "Exporting IP to CSV file --> $OVipCSV "
+            Export-OVIPAddress     -Outfile $OVipCSV            
+       }
+
        if (-not [string]::IsNullOrEmpty($OVProfileSANStorageCSV))
        { 
             
