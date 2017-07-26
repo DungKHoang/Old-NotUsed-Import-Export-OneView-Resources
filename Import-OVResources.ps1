@@ -1245,15 +1245,37 @@ Param ([string]$OVUpLinkSetCSV ="D:\Oneview Scripts\OV-UpLinkSet.csv")
 
 
 
-                   $Cmds = "New-HPOVUplinkSet -Resource `$ThisLIG -name `$UpLinkSetName -Type `$UpLinkSetType -Networks `$UpLinkSetNetworksArray -UplinkPorts `$UpLinkSetPorts" `
-                            + $NetPropertyCmds
+
 
 
                     write-host -foreground Cyan "-------------------------------------------------------------"
                     write-host -foreground Cyan "Creating UpLinkSet $UpLinKSetName on LIG $LGName...."
                     write-host -foreground Cyan "-------------------------------------------------------------"
-            
-                
+                    
+                    if ($UpLinkSetNetworksArray)
+                    {
+                        $ULNetworkCmds = " -Networks `$UpLinkSetNetworksArray  "
+                    } 
+                    else
+                    {
+                        $ULNetworkCmds = ""
+                        write-host -foreground YELLOW " Network list is empty. UplinkSet is created without network..."
+                        
+                    }
+
+                    if ($UpLinkSetPorts)
+                    {
+                        $ULPortCmds = " -UplinkPorts `$UpLinkSetPorts  "
+                    } 
+                    else
+                    {
+                        $ULPortCmds = ""
+                        write-host -foreground YELLOW " Uplink Ports list is empty. UplinkSet is created without uplink ports..."
+                       
+                    }
+                   
+                    $Cmds = "New-HPOVUplinkSet -Resource `$ThisLIG -name `$UpLinkSetName -Type `$UpLinkSetType   " `
+                            + $ULNetworkCmds + $ULPortCmds + $NetPropertyCmds                
                     Invoke-Expression $Cmds | wait-HPOVTaskComplete | fl
                 }
 
