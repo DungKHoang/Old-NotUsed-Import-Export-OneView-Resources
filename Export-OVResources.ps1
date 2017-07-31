@@ -54,6 +54,7 @@
 ##                           - Add Export WWNN, IP
 ##                           - Review Export-OVEnclosure to remove FWiso, change FwInstall and add MonitoredOnly
 ##                           - Update Export-OVethernetnetworks function to include UplinkSet and LogicalInterconnectgroup
+##          Aug 2017         - Remove search fro Uplimkset in Export-OVNEthernetnetworks
 ##
 ##   Version : 3.101
 ##
@@ -252,7 +253,7 @@ $HexPattern     = "^[0-9a-fA-F][0-9a-fA-F]:"
 
 # ------------------ Headers
 
-$NSHeader          = "NetworkSet,NSdescription,NSTypicalBandwidth,NSMaximumBandwidth,UplinkSet,LogicalInterConnectGroup,Networks,Native"
+$NSHeader            = "NetworkSet,NSdescription,NSTypicalBandwidth,NSMaximumBandwidth,UplinkSet,LogicalInterConnectGroup,Networks,Native"
 
 $NetHeader           = "NetworkSet,NSTypicalBandwidth,NSMaximumBandwidth,UplinkSet,LogicalInterConnectGroup,NetworkName,Type,vLANID,vLANType,Subnet,TypicalBandwidth,MaximumBandwidth,SmartLink,PrivateNetwork,Purpose"
                        
@@ -411,6 +412,7 @@ Function Export-OVNetwork ([string]$OutFile )
 
                 $ThisUplinkSet  = ""
                 $ThisLIG        = ""
+$Rem = @"
                 if (Get-HPOVServerProfile)
                 {
                     $ConnectionList = Get-HPOVServerProfileConnectionList 
@@ -435,7 +437,7 @@ Function Export-OVNetwork ([string]$OutFile )
                         }
                     }
                 }
-               
+"@               
             }
         }
         # Remove last sepchar
@@ -605,6 +607,7 @@ Function Export-OVNetworkSet ([string]$OutFile)
 
         $ThisUplinkSet  = ""
         $ThisLIG        = ""
+$Rem = @"
         if (Get-HPOVServerProfile)
         {
             $ConnectionList = Get-HPOVServerProfileConnectionList 
@@ -629,7 +632,7 @@ Function Export-OVNetworkSet ([string]$OutFile)
                 }
             }
         }
-
+"@
 
         # ---- Added to array
                             #"NetworkSet,NSdescription,NStypicalbandwidth,NSmaximubandwidth,UplinkSet,LogicalInterConnectGroup,Networks,Native,"
