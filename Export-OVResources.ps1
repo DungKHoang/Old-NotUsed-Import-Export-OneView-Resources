@@ -54,7 +54,8 @@
 ##                           - Add Export WWNN, IP
 ##                           - Review Export-OVEnclosure to remove FWiso, change FwInstall and add MonitoredOnly
 ##                           - Update Export-OVethernetnetworks function to include UplinkSet and LogicalInterconnectgroup
-##          Aug 2017         - Remove search fro Uplimkset in Export-OVNEthernetnetworks
+##          Aug 2017         - Remove search for Uplinkset in Export-OVNEthernetnetworks
+##                           - Add Try{} and catch {} in get-HPOVNetwork
 ##
 ##   Version : 3.101
 ##
@@ -389,8 +390,15 @@ function Check-HPOVVersion {
 
 Function Export-OVNetwork ([string]$OutFile )  
 {
+    try 
+    {
+        $ListofNetworks = Get-HPOVNetwork -Type Ethernet -ErrorAction Stop   
+    }
+    catch [HPOneView.NetworkResourceException]
+    {
+        $ListofNetworks = $NULL    
+    }
 
-    $ListofNetworks = Get-HPOVNetwork | where Type -like "Ethernet*"
 
     $ListofNetworkSet = Get-HPOVNetworkSet | sort Name
 

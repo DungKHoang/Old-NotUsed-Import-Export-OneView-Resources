@@ -89,6 +89,8 @@
 ##                         - Review Create-OVEnclosure to remove FWiso, change FwInstall and add MonitoredOnly
 ##                         - Add quotes around names and description for Create-OVAddressPool, Create-OVEnclosureGroup...
 ##
+##      Aug 2017 - v3.1    - Add Try{} and catch {} in get-HPOVNetwork
+##
 ##   Version : 3.1
 ##
 ##
@@ -464,12 +466,27 @@ Param   ([string] $ListNetworkSet, [string] $TypicalBandwidth, [string] $MaxBand
         $ListofNetworks         = @()
         $ListofUnTaggedNetworks = @()
         
-        $ThisNetwork         = get-hpovnetwork | where name -eq $NetworkName
+        try 
+        {
+            $ThisNetwork         = get-hpovnetwork -name $NetworkName -ErrorAction Stop
+        }
+        Catch [HPOneView.NetworkResourceException]
+        {
+            $ThisNetwork        = $NULL
+        }
       
 
         if ($NetworkSetName)
         {
-            $ThisNetworkSet = get-HPOVNetworkSet | where Name -eq $NetworkSetName
+            try 
+            {
+                $ThisNetworkSet = get-HPOVNetworkSet -Name $NetworkSetName -ErrorAction stop
+            }
+            Catch [HPOneView.NetworkResourceException]
+            {
+                $ThisNetworkSet        = $NULL
+            }
+
             if ($ThisNetworkSet)
             {   # Networkset already exist - Just add the new network
 
@@ -670,8 +687,16 @@ Param ([string]$OVEthernetNetworksCSV ="D:\Oneview Scripts\OV-EthernetNetworks.c
 
         if ($NetworkName)
         {
-            $ThisNetwork = Get-HPOVNetwork | where  Name -eq $NetworkName
-
+            
+            try 
+            {
+                $ThisNetwork = get-HPOVNetwork -Name $NetworkName -ErrorAction stop
+            }
+            Catch [HPOneView.NetworkResourceException]
+            {
+                $ThisNetwork   = $NULL
+            }
+            
             if ($ThisNetwork -eq $NULL)
             {
                 # Create network
@@ -805,7 +830,15 @@ Param ([string]$OVFCNetworksCSV ="D:\Oneview Scripts\OV-FCNetworks.csv")
             
                 }
 
-                $ThisNetwork = Get-HPOVNetwork | where Name -eq $NetworkName
+                try 
+                {
+                    $ThisNetwork = get-HPOVNetwork -Name $NetworkName -ErrorAction stop
+                }
+                Catch [HPOneView.NetworkResourceException]
+                {
+                    $ThisNetwork   = $NULL
+                }
+                
                 if ($ThisNetwork -eq $NULL)
                 {
                     # Create network
@@ -1196,7 +1229,15 @@ Param ([string]$OVUpLinkSetCSV ="D:\Oneview Scripts\OV-UpLinkSet.csv")
             $UpLinkSetNetworksArray  = @()
             Foreach ($net in $UpLinkSetNetworks)
             {
-                $netmember = Get-HPOVNetwork | where name -eq $net
+                
+                try 
+                {
+                    $netmember = Get-HPOVNetwork -name $net -ErrorAction stop
+                }
+                Catch [HPOneView.NetworkResourceException]
+                {
+                    $netmember = $NULL
+                }
                 if ($netmember)
                     { $UpLinkSetNetworksArray += $netmember}
             }
@@ -1965,11 +2006,29 @@ Function Create-OVProfileConnection {
                 {
 
                     # Configure network
-                    $objNetwork = Get-HPOVNetwork -name $NetworkName
+                    
+                    try 
+                    {
+                        $objNetwork = get-HPOVNetwork -Name $NetworkName -ErrorAction stop
+                    }
+                    Catch [HPOneView.NetworkResourceException]
+                    {
+                        $objNetwork   = $NULL
+                    }
+
                     if ($objNetwork -eq $NULL)
                     {
                         # Try network set
-                        $objNetwork = Get-HPOVNetworkSet | where name -eq $NetworkName
+                        
+                        try 
+                        {
+                            $objNetwork = get-HPOVNetworkSet -Name $NetworkName -ErrorAction stop
+                        }
+                        Catch [HPOneView.NetworkResourceException]
+                        {
+                            $objNetwork   = $NULL
+                        }
+                    
                     }
                     if ($objNetwork -ne $NULL)
                     {
@@ -3359,7 +3418,15 @@ Param ( [string]$OVStorageSystemCSV, [string]$OVFCNetworksCSV)
                             $IP  = $a[0]
                             $Net = $a[1]
 
-                            $ThisNet = Get-HPOVNetwork | where name -eq $Net
+                            try 
+                            {
+                                $ThisNet = get-HPOVNetwork -Name $Net -ErrorAction stop
+                            }
+                            Catch [HPOneView.NetworkResourceException]
+                            {
+                                $ThisNet   = $NULL
+                            }
+                    
                           
                             if ($IP)
                             {
