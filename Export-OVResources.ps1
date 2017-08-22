@@ -34,6 +34,7 @@
 ##         OVProfileConnectionCSV             = path to the CSV file containing Profile Connections definition
 ##         OVProfileCSV                       = path to the CSV file containing Server Profile definition         
 ##         OVipCSV                            = path to the CSV file containing IP definition
+##         OVOSDeploymentCSV                  = path to the CSV file containing OS deployment definition
 ##
 ##         All                                = if present, the script will export all resources into CSv files ( default names will be used)
 ##
@@ -56,6 +57,9 @@
 ##                           - Update Export-OVethernetnetworks function to include UplinkSet and LogicalInterconnectgroup
 ##          Aug 2017         - Remove search for Uplinkset in Export-OVNEthernetnetworks
 ##                           - Add Try{} and catch {} in get-HPOVNetwork
+##                           - Add Try{} and catch{} in Connect-HPOVMgmt
+##                           - Export OS Deployment appliance
+##                           - Export OS Deployment settings in Server Profile and Template
 ##
 ##   Version : 3.101
 ##
@@ -232,6 +236,7 @@ Param ( [string]$OVApplianceIP="10.254.13.202",
         [string]$OVAddressPoolCSV ="",                                                    #D:\Oneview Scripts\OV-AddressPool.csv",
         [string]$OVwwnnCSV        = "",
         [string]$OVipCSV          = "",
+        [string]$OVOSDeploymentCSV = "",
 
         [string]$OneViewModule = "HPOneView.310"
 
@@ -273,9 +278,9 @@ $LogicalEncHeader    = "LogicalEnclosureName,Enclosure,EnclosureGroup,FWBaseLine
 
 $ServerHeader        = "ServerName,AdminName,AdminPassword,Monitored,LicensingIntent"
 
-$ProfileHeader       = "ProfileName,Description,AssignmentType,Enclosure,EnclosureBay,Server,ServerTemplate,NotUsed,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics" 
+$ProfileHeader       = "ProfileName,Description,AssignmentType,Enclosure,EnclosureBay,Server,ServerTemplate,NotUsed,ServerHardwareType,EnclosureGroup,Affinity,OSDeployName,OSDeployParams,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics" 
 
-$PSTHeader           = "ProfileTemplateName,Description,ServerProfileDescription,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics" 
+$PSTHeader           = "ProfileTemplateName,Description,ServerProfileDescription,ServerHardwareType,EnclosureGroup,Affinity,OSDeployName,OSDeployParams,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics" 
 
 $ProfilePSTHeader    = "ServerProfileName,Description,ServerProfileTemplate,Server,AssignmentType"
 
@@ -295,9 +300,11 @@ $SANStorageHeader    = "ProfileName,EnableSANstorage,HostOSType,VolumeName,Lun"
 
 $AddressPoolHeader   = "PoolName,PoolType,RangeType,StartAddress,EndAddress,NetworkID,SubnetMask,Gateway,DnsServers,DomainName"
 
-$wwnnHeader          = "BayName,WWNN"
+$wwnnHeader          = "BayName,WWNN,WWPN"
 
 $IPHeader            = "Location,Type,BayNumber,ipAddress"
+
+$OSDSHeader          = "DeploymentServerName,Description,ManagementNetwork,ImageStreamerAppliance"
 
 $WarningText = @"
 ***WarninG***
@@ -1728,7 +1735,8 @@ Function Export-ProfileOrTemplate(
                 $ServerPDescription   = $p.ServerProfileDescription
             }
 
-            
+            # OS Deployment Plan 
+            $OSDeploySettings     = $p.OSDeploymentSettings  
             
             $HideUnusedFlexNics  = if($p.hideUnusedFlexNics) { 'Yes' } else { 'No'}
             $Affinity             = if ($p.Affinity) { $p.Affinity} else {'Bay'}
@@ -1837,16 +1845,40 @@ Function Export-ProfileOrTemplate(
                 $BIOSSettings = $BIOSSettingsArray -join $SepChar
             }
 
+            # OS Deployment Settings
+            $OSDPName      = $OSDParams = ""
+            if ($OSDeploySettings)
+            {
+                $OSDPuri       = $OSDeploySettings.osDeploymentPlanUri
+
+                try 
+                {
+                    $OSDPName      = (Send-HPOVRequest -uri $OSDPUri -ErrorAction stop).name
+                    $Params     = @()
+                    foreach ($CA in $OSDeploySettings.osCustomAttributes)
+                    {
+                        $Params += $CA.Name + "=" + $CA.Value
+                    }
+                    $OSDParams     = $Params -Join $SepChar
+
+                }
+                catch 
+                {
+                    $OSDPName      = $OSDParams = ""
+                }
+            }
+
+
             if ($createProfile)
             {
-                                #ProfileName,Description,AssignmentType,Enclosure,EnclosureBay,Server,ServerTemplate,,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics
-                $Value        = "$Name,$Desc,$AssignType,$EncName,$EncBay,$server,$ServerTemplate,,$ServerHWType,$EncGroup,$Affinity,$FWEnable,$FWBaseline,$FWMode,$FWINstall,$BIOSSettings,$BootOrder,$BootMode,$PXEBootPolicy,$MacType,$WWNType,$SNType,$HideUnusedFlexNics" 
+                                #ProfileName,Description,AssignmentType,Enclosure,EnclosureBay,Server,ServerTemplate,,ServerHardwareType,EnclosureGroup,Affinity,OSDeployName,OSDeployParams,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics
+                $Value        = "$Name,$Desc,$AssignType,$EncName,$EncBay,$server,$ServerTemplate,,$ServerHWType,$EncGroup,$Affinity,$FWEnable,$OSDPName,$OSDParams,$FWBaseline,$FWMode,$FWINstall,$BIOSSettings,$BootOrder,$BootMode,$PXEBootPolicy,$MacType,$WWNType,$SNType,$HideUnusedFlexNics" 
 
             }
             else 
             {
-                                #ProfileTemplateName,Description,ServerProfileDescription,ServerHardwareType,EnclosureGroup,Affinity,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics"             
-                $Value        = "$Name,$Desc,$ServerPDescription,$ServerHWType,$EncGroup,$Affinity,$FWEnable,$FWBaseline,$FWMode,$FWINstall,$BIOSSettings,$BootOrder,$BootMode,$PXEBootPolicy,$MacType,$WWNType,$SNType,$HideUnusedFlexNics" 
+                                #ProfileTemplateName,Description,ServerProfileDescription,ServerHardwareType,EnclosureGroup,Affinity,OSDeployName,OSDeployParams,FWEnable,FWBaseline,FWMode,FWInstall,BIOSSettings,BootOrder,BootMode,PXEBootPolicy,MACAssignment,WWNAssignment,SNAssignment,hideUnusedFlexNics"             
+                $Value        = "$Name,$Desc,$ServerPDescription,$ServerHWType,$EncGroup,$Affinity,$OSDPName,$OSDParams,$FWEnable,$FWBaseline,$FWMode,$FWINstall,$BIOSSettings,$BootOrder,$BootMode,$PXEBootPolicy,$MacType,$WWNType,$SNType,$HideUnusedFlexNics" 
 
             }
                            
@@ -2240,11 +2272,12 @@ Function Export-OVwwnn ([string]$OutFile)
             {
                 $BayName = $L.ServerProfile
                 $wwnn    = $L.wwnn
+                $wwpn    = $L.wwpn
                 $PortId  = $L.PortId
-                $PortId  = $PortId.Split($space)[-1] -replace ":", ""
+                $PortId  = $PortId.Split($space)[-1]
                 $BayName = $BayName + "_" + $PortId
 
-                $ValuesArray      += "$BayName,$wwnn"
+                $ValuesArray      += "$BayName,$wwnn,$wwpn"
             }      
         } 
 
@@ -2339,6 +2372,62 @@ Function Export-OVipAddress ([string]$OutFile)
 
 }
 
+## -------------------------------------------------------------------------------------------------------------
+##
+##                     Function Export-OVOSDEployment
+##
+## -------------------------------------------------------------------------------------------------------------
+
+Function Export-OVOSDEployment ([string]$OutFile)
+{
+    If ($Global:applianceconnection.ApplianceType -eq 'Composer')
+	{
+        $ValuesArray        = @()
+        $ListofOSDeployment = Get-HPOVOSDeploymentServer
+
+        foreach ($OSDS in $ListofOSDeployment)
+        {
+            # Get name and description
+            $OSName         = $OSDS.name
+            $Desc           = $OSDS.description
+            
+            # Get Management network
+            try 
+            {
+                $MgmtNet    = (Send-HPOVRequest -Uri $OSDS.mgmtNetworkUri -ErrorAction stop).name
+            } 
+            Catch
+            {
+                $MgmtNet    = "" 
+            }
+
+            # GEt Appliance name
+            try 
+            {
+                $OSappliancename    = (Send-HPOVRequest -Uri $OSDS.primaryActiveAppliance -ErrorAction stop).cimEnclosureName
+            } 
+            Catch
+            {
+                $OSappliancename    = "" 
+            }
+          
+                                 #DeploymentServerName,Description,ManagementNetwork,ImageStreamerAppliance
+            $ValuesArray      += "$OSName,$Desc,$MgmtNet,$OSappliancename"
+
+        }
+
+        if ($ValuesArray -ne $NULL)
+        {
+            $a= New-Item $OutFile  -type file -force
+            Set-content -Path $OutFile -Value $OSDSHeader
+            Add-content -path $OutFile -Value $ValuesArray
+
+        }
+
+    }
+
+}
+
 # -------------------------------------------------------------------------------------------------------------
 #
 #                  Main Entry
@@ -2370,214 +2459,232 @@ Function Export-OVipAddress ([string]$OutFile)
 
         # ---------------- Connect to OneView appliance
         #
-        write-host -foreground Cyan "$CR Connect to the OneView appliance..."
-        $global:ApplianceConnection =  Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain
-
-        $OVProfileTemplateConnectionCSV = $OVProfileTemplateLOCALStorageCSV = $OVProfileTemplateSANStorageCSV = ""
-
-       if ($All)
-       {
-            $OVEthernetNetworksCSV                 = "Ethernetnetworks.csv"
-            $OVNetworkSetCSV                       = "netset.csv"
-            $OVFCNetworksCSV                       = "FCNetworks.csv"
-            
-            $OVLogicalInterConnectGroupCSV         = "LogicalInterConnectGroup.csv"
-            $OVUplinkSetCSV                        = "UpLinkSet.csv"
-            
-            $OVEnclosureGroupCSV                   = "EnclosureGroup.csv"
-            $OVEnclosureCSV                        = "Enclosure.csv"
-            $OVLogicalEnclosureCSV                 = "LogicalEnclosure.csv"
-            $OVServerCSV                           = "Server.csv"
-
-            $OVProfileCSV                          = "Profile.csv"
-            $OVProfileTemplateCSV                  = "Profiletemplate.csv"
-            $OVProfileconnectionCSV                = "Profileconnection.csv"
-            $OVProfileLOCALStorageCSV              = "ProfileLOCALStorage.csv"
-            $OVProfileSANStorageCSV                = "ProfileSANStorage.csv"
-
-            $OVProfileTemplateConnectionCSV        = "ProfileTemplateConnection.csv"
-            $OVProfileTemplateLOCALStorageCSV      = "ProfileTemplateLOCALStorage.csv"
-            $OVProfileTemplateSANStorageCSV        = "ProfileTemplateSANStorage.csv"
-
-            $OVSanManagerCSV                       = "SANManager.csv"
-            $OVStorageSystemCSV                    = "StorageSystems.csv"
-            $OVStorageVolumeTemplateCSV            = "StorageVolumeTemplate.csv"
-            $OVStorageVolumeCSV                    = "StorageVolume.csv"
-            
-            $OVAddressPoolCSV                      = "AddressPool.CSV"
-            $OVwwnnCSV                             = "Wwnn.CSV"
-            $OVipCSV                               = "ip.CSV"
-                  
-       }  
-        
-
-       # ------------------------------ 
-
-       if (-not [string]::IsNullOrEmpty($OVEthernetNetworksCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting network resources to CSV file --> $OVEthernetNetworksCSV"
-            Export-OVNetwork        -OutFile $OVEthernetNetworksCSV 
-       }
-
-              if (-not [string]::IsNullOrEmpty($OVNetworkSetCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting network set resources to CSV file --> $OVNetworkSetCSV"
-            Export-OVNetworkSet        -OutFile $OVNetworkSetCSV 
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVFCNetworksCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting FC network resources to CSV file --> $OVFCNetworksCSV"
-            Export-OVFCNetwork      -OutFile $OVFCNetworksCSV 
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVSANManagerCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting SAN Manager resources to CSV file --> $OVSANManagerCSV"
-            Export-OVSANManager      -OutFile $OVSANManagerCSV 
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVStorageSystemCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting Storage System resources to CSV file --> $OVStorageSystemCSV"
-            Export-OVStorageSystem      -OutFile $OVStorageSystemCSV 
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVStorageVolumeTemplateCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting Storage Volume Templates to CSV file --> $OVStorageVolumeTemplateCSV"
-            Export-OVStorageVolumeTemplate      -OutFile $OVStorageVolumeTemplateCSV
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVStorageVolumeCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting Storage Volumes to CSV file --> $OVStorageVolumeCSV"
-            Export-OVStorageVolume     -OutFile $OVStorageVolumeCSV
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVLogicalInterConnectGroupCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting Logical Interconnect Group resources to CSV file --> $OVLogicalInterConnectGroupCSV"
-            Export-OVLogicalInterConnectGroup -OutFile $OVLogicalInterConnectGroupCSV 
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVUplinkSetCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting UpLinkSet resources to CSV file --> $OVUpLinkSetCSV"
-            Export-OVUpLinkSet      -OutFile  $OVUplinkSetCSV
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVEnclosureGroupCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting EnclosureGroup resources to CSV file --> $OVEnclosureGroupCSV"
-            Export-OVEnclosureGroup -OutFile  $OVEnclosureGroupCSV
-       }
 
 
-       if ($OVEnclosureCSV)
-       { 
-            write-host -ForegroundColor Cyan "Exporting Enclosure resources to CSV file --> $OVEnclosureCSV"
-            Export-OVEnclosure      -OutFile $OVEnclosureCSV
-       } 
+    
+        Try 
+        {
+            write-host -foreground Cyan "$CR Connect to the OneView appliance..."
+            $global:ApplianceConnection =  Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain
 
-       if ($OVLogicalEnclosureCSV)
-       { 
-            write-host -ForegroundColor Cyan "Exporting LogicalEnclosure resources to CSV file --> $OVLogicalEnclosureCSV"
-            Export-OVLogicalEnclosure      -OutFile $OVLogicalEnclosureCSV
-       } 
-       if ($OVServerCSV)
-       { 
-            write-host -ForegroundColor Cyan "Exporting Server resources to CSV file --> $OVServerCSV"
-            Export-OVServer      -OutFile $OVServerCSV
-       } 
+            $OVProfileTemplateConnectionCSV = $OVProfileTemplateLOCALStorageCSV = $OVProfileTemplateSANStorageCSV = ""
 
-       if (-not [string]::IsNullOrEmpty($OVProfileCSV))
-       { 
-            if (-not ($OVProfileConnectionCSV))
-                { $OVProfileConnectionCSV = "Profileconnection.csv"}
+            if ($All)
+            {
+                    $OVEthernetNetworksCSV                 = "Ethernetnetworks.csv"
+                    $OVNetworkSetCSV                       = "netset.csv"
+                    $OVFCNetworksCSV                       = "FCNetworks.csv"
+                    
+                    $OVLogicalInterConnectGroupCSV         = "LogicalInterConnectGroup.csv"
+                    $OVUplinkSetCSV                        = "UpLinkSet.csv"
+                    
+                    $OVEnclosureGroupCSV                   = "EnclosureGroup.csv"
+                    $OVEnclosureCSV                        = "Enclosure.csv"
+                    $OVLogicalEnclosureCSV                 = "LogicalEnclosure.csv"
+                    $OVServerCSV                           = "Server.csv"
 
-            if (-not ($OVProfileLOCALStorageCSV))
-                { $OVProfileLOCALStorageCSV = "ProfileLOCALStorage.csv"}
+                    $OVProfileCSV                          = "Profile.csv"
+                    $OVProfileTemplateCSV                  = "Profiletemplate.csv"
+                    $OVProfileconnectionCSV                = "Profileconnection.csv"
+                    $OVProfileLOCALStorageCSV              = "ProfileLOCALStorage.csv"
+                    $OVProfileSANStorageCSV                = "ProfileSANStorage.csv"
 
-            if (-not ($OVProfileSANStorageCSV))
-                { $OVProfileSANStorageCSV = "ProfileSANStorage.csv"}
+                    $OVProfileTemplateConnectionCSV        = "ProfileTemplateConnection.csv"
+                    $OVProfileTemplateLOCALStorageCSV      = "ProfileTemplateLOCALStorage.csv"
+                    $OVProfileTemplateSANStorageCSV        = "ProfileTemplateSANStorage.csv"
 
-            write-host -ForegroundColor Cyan "Exporting Profile --> $OVProfileCSV $CR and ProfileConnection --> $OVProfileConnectionCSV $CR and LOCALStorage --> $OVProfileLOCALStorageCSV  $CR and SANStorage --> $OVProfileSANStorageCSV"
-            Export-ProfileorTemplate -CreateProfile       -OutprofileTemplate $OVProfileCSV    -outConnectionfile $OVProfileConnectionCSV  -OutLOCALStorageFile  $OVProfileLOCALStorageCSV -OutSANStorageFile  $OVProfileSANStorageCSV 
-            
-            $OVProfileConnectionCSV = $OVProfileLOCALStorageCSV = $OVProfileSANStorageCSV = ""
-       }
+                    $OVSanManagerCSV                       = "SANManager.csv"
+                    $OVStorageSystemCSV                    = "StorageSystems.csv"
+                    $OVStorageVolumeTemplateCSV            = "StorageVolumeTemplate.csv"
+                    $OVStorageVolumeCSV                    = "StorageVolume.csv"
+                    
+                    $OVAddressPoolCSV                      = "AddressPool.CSV"
+                    $OVwwnnCSV                             = "Wwnn.CSV"
+                    $OVipCSV                               = "ip.CSV"
+                    $OVOSDeploymentCSV                     = "OSDeployment.CSV"    
+            }  
+                
+
+            # ------------------------------ 
+
+            if (-not [string]::IsNullOrEmpty($OVEthernetNetworksCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting network resources to CSV file --> $OVEthernetNetworksCSV"
+                    Export-OVNetwork        -OutFile $OVEthernetNetworksCSV 
+            }
+
+                    if (-not [string]::IsNullOrEmpty($OVNetworkSetCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting network set resources to CSV file --> $OVNetworkSetCSV"
+                    Export-OVNetworkSet        -OutFile $OVNetworkSetCSV 
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVFCNetworksCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting FC network resources to CSV file --> $OVFCNetworksCSV"
+                    Export-OVFCNetwork      -OutFile $OVFCNetworksCSV 
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVSANManagerCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting SAN Manager resources to CSV file --> $OVSANManagerCSV"
+                    Export-OVSANManager      -OutFile $OVSANManagerCSV 
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVStorageSystemCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting Storage System resources to CSV file --> $OVStorageSystemCSV"
+                    Export-OVStorageSystem      -OutFile $OVStorageSystemCSV 
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVStorageVolumeTemplateCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting Storage Volume Templates to CSV file --> $OVStorageVolumeTemplateCSV"
+                    Export-OVStorageVolumeTemplate      -OutFile $OVStorageVolumeTemplateCSV
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVStorageVolumeCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting Storage Volumes to CSV file --> $OVStorageVolumeCSV"
+                    Export-OVStorageVolume     -OutFile $OVStorageVolumeCSV
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVLogicalInterConnectGroupCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting Logical Interconnect Group resources to CSV file --> $OVLogicalInterConnectGroupCSV"
+                    Export-OVLogicalInterConnectGroup -OutFile $OVLogicalInterConnectGroupCSV 
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVUplinkSetCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting UpLinkSet resources to CSV file --> $OVUpLinkSetCSV"
+                    Export-OVUpLinkSet      -OutFile  $OVUplinkSetCSV
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVEnclosureGroupCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting EnclosureGroup resources to CSV file --> $OVEnclosureGroupCSV"
+                    Export-OVEnclosureGroup -OutFile  $OVEnclosureGroupCSV
+            }
 
 
-       if ($OVProfileTemplateCSV)
-       { 
-            ## Network Connection file
-            if (-not ($OVProfileTemplateConnectionCSV))
-                 { $OVProfileTemplateConnectionCSV = "ProfileTemplateconnection.csv"}
+            if ($OVEnclosureCSV)
+            { 
+                    write-host -ForegroundColor Cyan "Exporting Enclosure resources to CSV file --> $OVEnclosureCSV"
+                    Export-OVEnclosure      -OutFile $OVEnclosureCSV
+            } 
 
-            if (-not ($OVProfileConnectionCSV))
-                { $OVProfileConnectionCSV = $OVProfileTemplateConnectionCSV }
-                 
-            ## LOCAL Storage file
-            if (-not ($OVProfileTemplateLOCALStorageCSV))
-                 { $OVProfileTemplateLOCALStorageCSV = "ProfileTemplateLOCALStorage.csv"}
+            if ($OVLogicalEnclosureCSV)
+            { 
+                    write-host -ForegroundColor Cyan "Exporting LogicalEnclosure resources to CSV file --> $OVLogicalEnclosureCSV"
+                    Export-OVLogicalEnclosure      -OutFile $OVLogicalEnclosureCSV
+            } 
+            if ($OVServerCSV)
+            { 
+                    write-host -ForegroundColor Cyan "Exporting Server resources to CSV file --> $OVServerCSV"
+                    Export-OVServer      -OutFile $OVServerCSV
+            } 
 
-            if (-not ($OVProfileLOCALStorageCSV))
-                { $OVProfileLOCALStorageCSV = $OVProfileTemplateLOCALStorageCSV }
-                               
-            ## SAN Storage file
-            if (-not ($OVProfileTemplateSANStorageCSV))
-                 { $OVProfileTemplateSANStorageCSV = "ProfileTemplateSANStorage.csv"}
+            if (-not [string]::IsNullOrEmpty($OVProfileCSV))
+            { 
+                    if (-not ($OVProfileConnectionCSV))
+                        { $OVProfileConnectionCSV = "Profileconnection.csv"}
 
-            if (-not ($OVProfileSANStorageCSV))
-                { $OVProfileSANStorageCSV = $OVProfileTemplateSANStorageCSV }
+                    if (-not ($OVProfileLOCALStorageCSV))
+                        { $OVProfileLOCALStorageCSV = "ProfileLOCALStorage.csv"}
 
+                    if (-not ($OVProfileSANStorageCSV))
+                        { $OVProfileSANStorageCSV = "ProfileSANStorage.csv"}
 
-
-            write-host -ForegroundColor Cyan "Exporting Profile Template --> $OVProfileTemplateCSV $CR and TemplateConnection --> $OVProfileConnectionCSV $CR and LOCALStorage --> $OVProfileLOCALStorageCSV  $CR and SANStorage --> $OVProfileSANStorageCSV"
-            Export-ProfileorTemplate        -OutprofileTemplate $OVProfileTemplateCSV    -outConnectionfile $OVProfileConnectionCSV  -OutLOCALStorageFile  $OVProfileLOCALStorageCSV -OutSANStorageFile  $OVProfileSANStorageCSV 
-            
-            $OVProfileConnectionCSV = $OVProfileLOCALStorageCSV = $OVProfileSANStorageCSV = ""
-
-     }
-
-
-       if (-not [string]::IsNullOrEmpty($OVAddressPoolCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting Address Pools to CSV file --> $OVAddressPoolCSV "
-            Export-OVAddressPool      -Outfile $OVAddressPoolCSV            
-       }
-        
-       if (-not [string]::IsNullOrEmpty($OVwwnnCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting WWnn to CSV file --> $OVWwnnCSV "
-            Export-OVwwnn     -Outfile $OVWwnnCSV            
-       }  
-
-       if (-not [string]::IsNullOrEmpty($OVipCSV))
-       { 
-            write-host -ForegroundColor Cyan "Exporting IP to CSV file --> $OVipCSV "
-            Export-OVIPAddress     -Outfile $OVipCSV            
-       }
-
-       if (-not [string]::IsNullOrEmpty($OVProfileSANStorageCSV))
-       { 
-            
-           # Export-OVAddressPool      -Outfile $OVProfileSANSCSV            
-       }
+                    write-host -ForegroundColor Cyan "Exporting Profile --> $OVProfileCSV $CR and ProfileConnection --> $OVProfileConnectionCSV $CR and LOCALStorage --> $OVProfileLOCALStorageCSV  $CR and SANStorage --> $OVProfileSANStorageCSV"
+                    Export-ProfileorTemplate -CreateProfile       -OutprofileTemplate $OVProfileCSV    -outConnectionfile $OVProfileConnectionCSV  -OutLOCALStorageFile  $OVProfileLOCALStorageCSV -OutSANStorageFile  $OVProfileSANStorageCSV 
+                    
+                    $OVProfileConnectionCSV = $OVProfileLOCALStorageCSV = $OVProfileSANStorageCSV = ""
+            }
 
 
-        write-host -foreground Cyan "$CR Disconnect from the OneView appliance..."
-        Disconnect-HPOVMgmt
+            if ($OVProfileTemplateCSV)
+            { 
+                    ## Network Connection file
+                    if (-not ($OVProfileTemplateConnectionCSV))
+                        { $OVProfileTemplateConnectionCSV = "ProfileTemplateconnection.csv"}
 
-        write-host -foreground Cyan "--------------------------------------------------------------"
-        write-host -foreground Cyan "The script does not export credentials of OneView resources. "
-        write-host -foreground Cyan "If applied, review the following files to update credentials: "
-        write-host -foreground Cyan "  - SANManager.csv"
-        write-host -foreground Cyan "  - StorageSystems.csv"
-        write-host -foreground Cyan "  - Enclosure.csv"
-        write-host -foreground Cyan "  - Server.csv"
-        write-host -foreground Cyan "--------------------------------------------------------------"
+                    if (-not ($OVProfileConnectionCSV))
+                        { $OVProfileConnectionCSV = $OVProfileTemplateConnectionCSV }
+                        
+                    ## LOCAL Storage file
+                    if (-not ($OVProfileTemplateLOCALStorageCSV))
+                        { $OVProfileTemplateLOCALStorageCSV = "ProfileTemplateLOCALStorage.csv"}
+
+                    if (-not ($OVProfileLOCALStorageCSV))
+                        { $OVProfileLOCALStorageCSV = $OVProfileTemplateLOCALStorageCSV }
+                                    
+                    ## SAN Storage file
+                    if (-not ($OVProfileTemplateSANStorageCSV))
+                        { $OVProfileTemplateSANStorageCSV = "ProfileTemplateSANStorage.csv"}
+
+                    if (-not ($OVProfileSANStorageCSV))
+                        { $OVProfileSANStorageCSV = $OVProfileTemplateSANStorageCSV }
+
+
+
+                    write-host -ForegroundColor Cyan "Exporting Profile Template --> $OVProfileTemplateCSV $CR and TemplateConnection --> $OVProfileConnectionCSV $CR and LOCALStorage --> $OVProfileLOCALStorageCSV  $CR and SANStorage --> $OVProfileSANStorageCSV"
+                    Export-ProfileorTemplate        -OutprofileTemplate $OVProfileTemplateCSV    -outConnectionfile $OVProfileConnectionCSV  -OutLOCALStorageFile  $OVProfileLOCALStorageCSV -OutSANStorageFile  $OVProfileSANStorageCSV 
+                    
+                    $OVProfileConnectionCSV = $OVProfileLOCALStorageCSV = $OVProfileSANStorageCSV = ""
+
+            }
+
+
+            if (-not [string]::IsNullOrEmpty($OVAddressPoolCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting Address Pools to CSV file --> $OVAddressPoolCSV "
+                    Export-OVAddressPool      -Outfile $OVAddressPoolCSV            
+            }
+                
+            if (-not [string]::IsNullOrEmpty($OVwwnnCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting WWnn to CSV file --> $OVWwnnCSV "
+                    Export-OVwwnn     -Outfile $OVWwnnCSV            
+            }  
+
+            if (-not [string]::IsNullOrEmpty($OVipCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting IP to CSV file --> $OVipCSV "
+                    Export-OVIPAddress     -Outfile $OVipCSV            
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVOSDeploymentCSV))
+            { 
+                    write-host -ForegroundColor Cyan "Exporting OS Deployment to CSV file --> $OVOSDeploymentCSV "
+                    Export-OVOSDEployment     -Outfile $OVOSDeploymentCSV           
+            }
+
+            if (-not [string]::IsNullOrEmpty($OVProfileSANStorageCSV))
+            { 
+                    
+                # Export-OVAddressPool      -Outfile $OVProfileSANSCSV            
+            }
+
+
+                write-host -foreground Cyan "$CR Disconnect from the OneView appliance..."
+                Disconnect-HPOVMgmt
+
+                write-host -foreground Cyan "--------------------------------------------------------------"
+                write-host -foreground Cyan "The script does not export credentials of OneView resources. "
+                write-host -foreground Cyan "If applied, review the following files to update credentials: "
+                write-host -foreground Cyan "  - SANManager.csv"
+                write-host -foreground Cyan "  - StorageSystems.csv"
+                write-host -foreground Cyan "  - Enclosure.csv"
+                write-host -foreground Cyan "  - Server.csv"
+                write-host -foreground Cyan "--------------------------------------------------------------"
+
+
+        }
+        catch 
+        {
+            write-host -foreground Yellow " Cannot connect to OneView.... Please check Host name, username and password for OneView.  "
+        }
 
 
 

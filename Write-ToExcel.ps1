@@ -478,18 +478,20 @@ Function Write-ToProfileTemplate ($WS,[string]$CSVFile, [int16]$RowStart = 15)
          $WS.Cells($RowStart,4)   = $obj.ServerHardwareType
          $WS.Cells($RowStart,5)   = $obj.EnclosureGroup
          $WS.Cells($RowStart,6)   = $obj.Affinity
-         $WS.Cells($RowStart,7)   = $obj.FWEnable
-         $WS.Cells($RowStart,8)   = $obj.FWBaseLine
-         $WS.Cells($RowStart,9)   = $obj.FWMode
-         $WS.Cells($RowStart,10)  = $obj.FWInstall
-         $WS.Cells($RowStart,11)  = $obj.BIOSSettings
-         $WS.Cells($RowStart,12)  = $obj.BootOrder
-         $WS.Cells($RowStart,13)  = $obj.BootMode
-         $WS.Cells($RowStart,14)  = $obj.PXEBootPolicy
-         $WS.Cells($RowStart,15)  = $obj.MACAssignment
-         $WS.Cells($RowStart,16)  = $obj.WWNAssignment
-         $WS.Cells($RowStart,17)  = $obj.SNAssignment
-         $WS.Cells($RowStart,18)  = $obj.HideUnusedFlexNics
+         $WS.Cells($RowStart,7)   = $obj.OSDeployName
+         $WS.Cells($RowStart,8)   = $obj.OSDeployParams
+         $WS.Cells($RowStart,9)   = $obj.FWEnable
+         $WS.Cells($RowStart,10)  = $obj.FWBaseLine
+         $WS.Cells($RowStart,11)  = $obj.FWMode
+         $WS.Cells($RowStart,12)  = $obj.FWInstall
+         $WS.Cells($RowStart,13)  = $obj.BIOSSettings
+         $WS.Cells($RowStart,14)  = $obj.BootOrder
+         $WS.Cells($RowStart,15)  = $obj.BootMode
+         $WS.Cells($RowStart,16)  = $obj.PXEBootPolicy
+         $WS.Cells($RowStart,17)  = $obj.MACAssignment
+         $WS.Cells($RowStart,18)  = $obj.WWNAssignment
+         $WS.Cells($RowStart,19)  = $obj.SNAssignment
+         $WS.Cells($RowStart,20)  = $obj.HideUnusedFlexNics
          
          
          $RowStart               += 2               # Add 1 blank line           
@@ -522,18 +524,20 @@ Function Write-ToProfile ($WS,[string]$CSVFile, [int16]$RowStart = 15)
          $WS.Cells($RowStart,9)   = $obj.ServerHardwareType
          $WS.Cells($RowStart,10)  = $obj.EnclosureGroup
          $WS.Cells($RowStart,11)  = $obj.Affinity
-         $WS.Cells($RowStart,12)  = $obj.FWEnable
-         $WS.Cells($RowStart,13)  = $obj.FWBaseline
-         $WS.Cells($RowStart,14)  = $obj.FWMode
-         $WS.Cells($RowStart,15)  = $obj.FWInstall
-         $WS.Cells($RowStart,16)  = $obj.BIOSSettings
-         $WS.Cells($RowStart,17)  = $obj.BootOrder
-         $WS.Cells($RowStart,18)  = $obj.BootMode
-         $WS.Cells($RowStart,19)  = $obj.PXEBootPolicy
-         $WS.Cells($RowStart,20)  = $obj.MACAssignment
-         $WS.Cells($RowStart,21)  = $obj.WWNAssignment
-         $WS.Cells($RowStart,22)  = $obj.SNAssignment
-         $WS.Cells($RowStart,23)  = $obj.HideUnusedFlexNics
+         $WS.Cells($RowStart,12)  = $obj.OSDeployName
+         $WS.Cells($RowStart,13)  = $obj.OSDeployParams
+         $WS.Cells($RowStart,14)  = $obj.FWEnable
+         $WS.Cells($RowStart,15)  = $obj.FWBaseline
+         $WS.Cells($RowStart,16)  = $obj.FWMode
+         $WS.Cells($RowStart,17)  = $obj.FWInstall
+         $WS.Cells($RowStart,18)  = $obj.BIOSSettings
+         $WS.Cells($RowStart,19)  = $obj.BootOrder
+         $WS.Cells($RowStart,20)  = $obj.BootMode
+         $WS.Cells($RowStart,21)  = $obj.PXEBootPolicy
+         $WS.Cells($RowStart,22)  = $obj.MACAssignment
+         $WS.Cells($RowStart,23)  = $obj.WWNAssignment
+         $WS.Cells($RowStart,24)  = $obj.SNAssignment
+         $WS.Cells($RowStart,25)  = $obj.HideUnusedFlexNics
          
 
          $RowStart               += 2               # Add 1 blank line           
@@ -675,6 +679,57 @@ Function Write-ToProfileSANStorage ($WS,[string]$CSVFile, [int16]$RowStart = 15)
   
 }
 
+
+## -------------------------------------------------------------------------------------------------------------
+##
+##                     Function Write-ToIP
+##
+## -------------------------------------------------------------------------------------------------------------
+
+Function Write-ToIP ($WS,[string]$CSVFile, [int16]$RowStart = 15)
+{    
+    $ThisCSV     = import-CSV $CSVFile
+
+    foreach ($obj in $ThisCSV)
+    {
+         $WS.Cells($RowStart,1)   = $obj.Location
+         $WS.Cells($RowStart,2)   = $obj.Type
+         $WS.Cells($RowStart,3)   = $obj.BayNumber
+         $WS.Cells($RowStart,4)   = $obj.ipAddress         
+
+         $RowStart               += 2               # Add 1 blank line           
+            	
+         
+    }
+  
+}
+
+## -------------------------------------------------------------------------------------------------------------
+##
+##                     Function Write-ToWWNN
+##
+## -------------------------------------------------------------------------------------------------------------
+
+Function Write-ToWWNN ($WS,[string]$CSVFile, [int16]$RowStart = 15)
+{    
+    $ThisCSV     = import-CSV $CSVFile
+
+    foreach ($obj in $ThisCSV)
+    {
+         $WS.Cells($RowStart,1)   = $obj.BayName
+         $WS.Cells($RowStart,2)   = $obj.WWNN
+         $WS.Cells($RowStart,3)   = $obj.WWPN       
+
+         $RowStart               += 2               # Add 1 blank line           
+            	
+         
+    }
+  
+}
+
+\
+
+
 # -------------------------------------------------------------------------------------------------------------
 #
 #                  Main Entry
@@ -712,6 +767,7 @@ if ( (test-path -Path $TemplateFullPath -PathType Leaf) -and (Test-Path -path $C
             
             switch ($SheetName) 
             {
+
                 'AddressPool'   
                                 { 
                                     $ThisWorkSheet = $worbook.WorkSheets | where Name -eq $SheetName
@@ -918,7 +974,27 @@ if ( (test-path -Path $TemplateFullPath -PathType Leaf) -and (Test-Path -path $C
                                         Write-Host -ForegroundColor CYAN "Creating worksheet $SheetName ....."
                                         Write-ToProfileSANStorage -WS $ThisWorkSheet -CSVFile $f.FullName -RowStart 15
                                     }
+                                }
+                'IP'   
+                                { 
+                                    $ThisWorkSheet = $worbook.WorkSheets | where Name -eq $SheetName
+                                    if ($ThisWorkSheet)
+                                    {
+                                        Write-Host -ForegroundColor CYAN "Creating worksheet $SheetName ....."
+                                        Write-ToiP -WS $ThisWorkSheet -CSVFile $f.FullName -RowStart 15
+                                    }
                                 } 
+                'WWNN'   
+                                { 
+                                    $ThisWorkSheet = $worbook.WorkSheets | where Name -eq $SheetName
+                                    if ($ThisWorkSheet)
+                                    {
+                                        Write-Host -ForegroundColor CYAN "Creating worksheet $SheetName ....."
+                                        Write-ToWWNN -WS $ThisWorkSheet -CSVFile $f.FullName -RowStart 15
+                                    }
+                                } 
+
+
             }
         }
 
@@ -930,7 +1006,7 @@ if ( (test-path -Path $TemplateFullPath -PathType Leaf) -and (Test-Path -path $C
     }
     else 
     {
-        write-host -ForegroundColor YELLOW "Excel software is not available from this compuer.Cannot generate Excel Sheets.`n Please use a computher that has Excel installed "
+        write-host -ForegroundColor YELLOW "Excel software is not available from this computer.Cannot generate Excel Sheets.`n Please use a computher that has Excel installed "
 
     }
 } 

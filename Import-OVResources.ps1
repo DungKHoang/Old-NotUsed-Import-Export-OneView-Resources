@@ -90,6 +90,9 @@
 ##                         - Add quotes around names and description for Create-OVAddressPool, Create-OVEnclosureGroup...
 ##
 ##      Aug 2017 - v3.1    - Add Try{} and catch {} in get-HPOVNetwork
+##                         - Remove addition of quotes around network name
+##                         - Fix subnet attached to network
+##                         - Add Try{} and catch{} in Connect-HPOVMgmt
 ##
 ##   Version : 3.1
 ##
@@ -650,7 +653,7 @@ Param ([string]$OVEthernetNetworksCSV ="D:\Oneview Scripts\OV-EthernetNetworks.c
 
         $vLANType      = if ($N.vLANType) {$N.vLANType} else {'Tagged'}
 
-        $SubnetID      = $N.SubnetID
+        $SubnetID      = $N.Subnet
         $SubnetIDCmd   = ""
 
         if ( $SubnetID)
@@ -659,6 +662,7 @@ Param ([string]$OVEthernetNetworksCSV ="D:\Oneview Scripts\OV-EthernetNetworks.c
             if ( ($ThisSubnetID) -and (-not ($ThisSubnetID.associatedResources)) ) # SubnetID exists and not associated to any existing network
             {
                 $subnetIDCmd = " -subnet `$ThisSubnetID "
+               
             }
             else
             {
@@ -782,8 +786,8 @@ Param ([string]$OVFCNetworksCSV ="D:\Oneview Scripts\OV-FCNetworks.csv")
     foreach ($N in $script:ListofFCNets)
     {
 
-        $NetworkName     = "'" + $N.NetworkName + "'"
-        $Description     = "'" + $N.Description + "'"
+        $NetworkName     = $N.NetworkName
+        $Description     = $N.Description
         $FabricType      = $N.FabricType
         $Type            = $N.Type
         $PBandwidth      = 1000 * $N.TypicalBandwidth
@@ -793,8 +797,8 @@ Param ([string]$OVFCNetworksCSV ="D:\Oneview Scripts\OV-FCNetworks.csv")
         $ManagedSAN      = $N.ManagedSAN
         $vLANID          = $N.vLANId
 
-        
-       
+
+
         if ( ($Type -eq 'FCOE') -and ($vLANID -eq $NULL) )
         {
             write-host -foreground YELLOW "TYpe is FCOE but no VLAN specified. Sip creating this network $NetworkName "
@@ -1052,7 +1056,7 @@ $FabricModuleTypes       = @{
                     $ICBaySetParam         = " -InterConnectBaySet $ICBaySet "
 
 
-                    # Parameters that are valid to C7000  only
+                    # Parameters that are valid to C7000  only   ---> Nullify here
                     $FastMacCacheParam = $PauseFloodProtectionParam =  "" 
             }
         }
@@ -1386,8 +1390,8 @@ Param ( [string]$OVEnclosureGroupCSV ="D:\Oneview Scripts\OV-EnclosureGroup.csv"
 
         foreach ($EG in $ListofEnclosureGroup)
         {
-            $EGName              = "'" + $EG.EnclosureGroupName + "'"
-            $EGDescription       = "'" + $EG.Description + "'"
+            $EGName              = $EG.EnclosureGroupName 
+            $EGDescription       = $EG.Description
             $EGEnclosureCount    = $EG.Enclosurecount
             $EGipv4Type          = if ($EG.IPv4AddressType) { $EG.IPv4AddressType } else {"DHCP"} 
             $EGAddressPool       = $EG.AddressPool
@@ -1429,16 +1433,19 @@ Param ( [string]$OVEnclosureGroupCSV ="D:\Oneview Scripts\OV-EnclosureGroup.csv"
                                 
                                 foreach ($LName in $LIGNameArray)
                                 {
-                                    $ThisLIG = Get-HPOVLogicalInterConnectGroup | where name -eq $LName
-                                                       
-                                    if ($ThisLIG)
+                                    if ($LName)
                                     {
-                                    $LIGObjArray  += $ThisLIG 
-                                    
-                                    }
-                                    else
-                                    {
-                                        write-host -ForegroundColor Yellow "Logical InterConnect Group $LName does not exist. Skip including it...." 
+                                        $ThisLIG = Get-HPOVLogicalInterConnectGroup | where name -eq $LName
+                                                        
+                                        if ($ThisLIG)
+                                        {
+                                        $LIGObjArray  += $ThisLIG 
+                                        
+                                        }
+                                        else
+                                        {
+                                            write-host -ForegroundColor Yellow "Logical InterConnect Group $LName does not exist. Skip including it...." 
+                                        }
                                     }
                                 }
                            
@@ -4304,135 +4311,144 @@ Function Create-OVDeploymentServer ([string]$OVOSDeploymentCSV)
 
         # ---------------- Connect to OneView appliance
         #
-        write-host "`n Connect to the OneView appliance..."
-        $global:ApplianceConnection = Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword -AuthLoginDomain $OVAuthDomain
-
-    if ( ! [string]::IsNullOrEmpty($OVEthernetNetworksCSV) -and (Test-path $OVEthernetNetworksCSV) )
+        try 
         {
-            Create-OVEthernetNetworks -OVEthernetNetworksCSV $OVEthernetNetworksCSV 
+            
+            write-host "`n Connect to the OneView appliance..."
+            $global:ApplianceConnection = Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword -AuthLoginDomain $OVAuthDomain
+
+            if ( ! [string]::IsNullOrEmpty($OVEthernetNetworksCSV) -and (Test-path $OVEthernetNetworksCSV) )
+                {
+                    Create-OVEthernetNetworks -OVEthernetNetworksCSV $OVEthernetNetworksCSV 
+                }
+
+
+
+            if ( ! [string]::IsNullOrEmpty($OVLogicalInterConnectGroupCSV) -and (Test-path $OVLogicalInterConnectGroupCSV) )
+                {
+                    Create-OVLogicalInterConnectGroup -OVLogicalInterConnectGroupCSV $OVLogicalInterConnectGroupCSV 
+                }
+
+            if ( ! [string]::IsNullOrEmpty($OVUpLinkSetCSV) -and (Test-path $OVUpLinkSetCSV) )
+                {
+                    Create-OVUplinkSet -OVUpLinkSetCSV $OVUplinkSetCSV 
+                }
+
+            
+            if ( ! [string]::IsNullOrEmpty($OVEnclosureGroupCSV) -and (Test-path $OVEnclosureGroupCSV) )
+                {
+                    Create-OVEnclosureGroup -OVEnclosureGroupCSV $OVEnclosureGroupCSV 
+                }
+
+            if ( ($OVEnclosureCSV) -and (Test-path $OVEnclosureCSV) )
+                {
+                Create-OVEnclosure -OVEnclosureCSV $OVEnclosureCSV 
+        
+                }
+
+            if ( ($OVLogicalEnclosureCSV) -and (Test-path $OVLogicalEnclosureCSV) )
+                {
+                
+                Create-OVLogicalEnclosure -OVLogicalEnclosureCSV $OVLogicalEnclosureCSV 
+        
+                }
+
+            if ( $OVServerCSV -and (Test-path $OVServerCSV) )
+                    {
+                    Create-OVServer -OVServerCSV $OVServerCSV 
+            
+                    }
+
+            #Region Create Profiles        
+            if ( ! [string]::IsNullOrEmpty($OVProfileCSV) -and (Test-path $OVProfileCSV) )
+                    {
+                        Create-OVProfile -OVProfileCSV $OVProfileCSV -OVProfileConnectionCSV $OVProfileConnectionCSV -OVProfileLOCALStorageCSV  $OVProfileLOCALStorageCSV -OVProfileSANStorageCSV  $OVProfileSANStorageCSV 
+                    }
+
+
+            if ( ($OVProfileConnectionCSV) -and (Test-path $OVProfileConnectionCSV) )
+                {
+                    #Create-OVProfileConnection  -ProfileConnectionCSV $OVProfileConnectionCSV -ProfileName "Template-BL460c-Gen9-1-Enc1" 
+                }
+
+            if ( $OVProfileTemplateCSV -and (Test-path $OVProfileTemplateCSV) )
+                {
+                    Create-OVProfileTemplate -OVProfileTemplateCSV $OVProfileTemplateCSV -OVProfileConnectionCSV $OVProfileConnectionCSV -OVProfileLOCALStorageCSV  $OVProfileLOCALStorageCSV -OVProfileSANStorageCSV  $OVProfileSANStorageCSV 
+                }
+
+            if ( $OVProfileFROMTemplateCSV -and (Test-path $OVProfileFROMTemplateCSV) )
+                {
+                    Create-OVProfileFROMTemplate -OVProfilefromTemplateCSV $OVProfileFROMTemplateCSV 
+                }
+           #endregion Create Profiles
+
+
+            if ( ! [string]::IsNullOrEmpty($OVStorageSystemCSV) -and (Test-path $OVStorageSystemCSV) )
+                {
+                    Create-OVStorageSystem -OVStorageSystemCSV $OVStorageSystemCSV -OVFCNetworksCSV $OVFCNetworksCSV
+                    $OVFCNetworksCSV = ""
+                }
+
+            if ( ! [string]::IsNullOrEmpty($OVFCNetworksCSV) -and (Test-path $OVFCNetworksCSV) )
+                {
+                    Create-OVFCNetworks -OVFCNetworksCSV $OVFCNetworksCSV 
+                }  
+                    
+                
+            if ( ! [string]::IsNullOrEmpty($OVSanManagerCSV) -and (Test-path $OVSanManagerCSV) )
+                {
+                Create-OVSanManager -OVSanManagerCSV $OVSanManagerCSV 
+                }
+
+            if ( ! [string]::IsNullOrEmpty($OVStorageVolumeTemplateCSV) -and (Test-path $OVStorageVolumeTemplateCSV) )
+                {
+                Create-OVStorageVolumeTemplate -OVStorageVolumeTemplateCSV $OVStorageVolumeTemplateCSV
+                }
+
+            if ( ! [string]::IsNullOrEmpty($OVStorageVolumeCSV) -and (Test-path $OVStorageVolumeCSV) )
+                {
+                Create-OVStorageVolume -OVStorageVolumeCSV $OVStorageVolumeCSV -OVStorageVolumeTemplateCSV $OVStorageVolumeTemplateCSV 
+                }
+
+            if ( ! [string]::IsNullOrEmpty($OVAddressPoolCSV) -and (Test-path $OVAddressPoolCSV) )
+                {
+                Create-OVAddressPool -OVAddressPoolCSV $OVAddressPoolCSV 
+                }  
+
+            if ( ! [string]::IsNullOrEmpty($OVOSDeploymentCSV ) -and (Test-path $OVOSDeploymentCSV ) )
+                {
+                Create-OVDeploymentServer -OVOSDeploymentCSV $OVOSDeploymentCSV 
+                } 
+
+            if ( ! [string]::IsNullOrEmpty($OVProfileSANStorageCSV) -and (Test-path $OVProfileSANStorageCSV) )
+            {
+            
+                #Create-OVProfileSANStorage -ProfileSANStorageCSV $OVProfileSANStorageCSV -profileName 'Encl2-Bay12 Profile'
+            }
+
+            if ( ! [string]::IsNullOrEmpty($OVProfileLOCALStorageCSV) -and (Test-path $OVProfileLOCALStorageCSV) )
+            {
+                #Create-OVProfileLOCALStorage -ProfileLOCALStorageCSV $OVProfileLOCALStorageCSV -profileName 'Encl2-Bay12 Profile'
+            }
+            
+            if ( $OVProfileConnectionCSV -and (Test-path $OVProfileConnectionCSV) )
+            {
+                #Create-OVProfileConnection -ProfileConnectionCSV $OVProfileConnectionCSV -profileName 'Template-BL460c-Gen8-1-Enc1'
+            }
+
+
+            
+
+
+
+            # Clean up
+            write-host -foreground Cyan "-----------------------------------------"
+            write-host -foreground Cyan " Disconnect the OneView appliance........"
+            write-host -foreground Cyan "-----------------------------------------"
+            Disconnect-HPOVMgmt
+
         }
-
-
-
-    if ( ! [string]::IsNullOrEmpty($OVLogicalInterConnectGroupCSV) -and (Test-path $OVLogicalInterConnectGroupCSV) )
+        catch 
         {
-            Create-OVLogicalInterConnectGroup -OVLogicalInterConnectGroupCSV $OVLogicalInterConnectGroupCSV 
+            write-host -foreground Yellow " Cannot connect to OneView.... Please check Host name, username and password for OneView.  "
         }
-
-    if ( ! [string]::IsNullOrEmpty($OVUpLinkSetCSV) -and (Test-path $OVUpLinkSetCSV) )
-        {
-            Create-OVUplinkSet -OVUpLinkSetCSV $OVUplinkSetCSV 
-        }
-
-    
-    if ( ! [string]::IsNullOrEmpty($OVEnclosureGroupCSV) -and (Test-path $OVEnclosureGroupCSV) )
-        {
-            Create-OVEnclosureGroup -OVEnclosureGroupCSV $OVEnclosureGroupCSV 
-        }
-
-   if ( ($OVEnclosureCSV) -and (Test-path $OVEnclosureCSV) )
-        {
-           Create-OVEnclosure -OVEnclosureCSV $OVEnclosureCSV 
- 
-        }
-
-   if ( ($OVLogicalEnclosureCSV) -and (Test-path $OVLogicalEnclosureCSV) )
-        {
-           
-           Create-OVLogicalEnclosure -OVLogicalEnclosureCSV $OVLogicalEnclosureCSV 
- 
-        }
-
-   if ( $OVServerCSV -and (Test-path $OVServerCSV) )
-        {
-           Create-OVServer -OVServerCSV $OVServerCSV 
- 
-        }
-
-#Region Create Profiles        
-    if ( ! [string]::IsNullOrEmpty($OVProfileCSV) -and (Test-path $OVProfileCSV) )
-        {
-            Create-OVProfile -OVProfileCSV $OVProfileCSV -OVProfileConnectionCSV $OVProfileConnectionCSV -OVProfileLOCALStorageCSV  $OVProfileLOCALStorageCSV -OVProfileSANStorageCSV  $OVProfileSANStorageCSV 
-        }
-
-
-    if ( ($OVProfileConnectionCSV) -and (Test-path $OVProfileConnectionCSV) )
-        {
-            #Create-OVProfileConnection  -ProfileConnectionCSV $OVProfileConnectionCSV -ProfileName "Template-BL460c-Gen9-1-Enc1" 
-        }
-
-    if ( $OVProfileTemplateCSV -and (Test-path $OVProfileTemplateCSV) )
-        {
-            Create-OVProfileTemplate -OVProfileTemplateCSV $OVProfileTemplateCSV -OVProfileConnectionCSV $OVProfileConnectionCSV -OVProfileLOCALStorageCSV  $OVProfileLOCALStorageCSV -OVProfileSANStorageCSV  $OVProfileSANStorageCSV 
-        }
-
-    if ( $OVProfileFROMTemplateCSV -and (Test-path $OVProfileFROMTemplateCSV) )
-        {
-            Create-OVProfileFROMTemplate -OVProfilefromTemplateCSV $OVProfileFROMTemplateCSV 
-        }
-#endregion Create Profiles
-
-
-    if ( ! [string]::IsNullOrEmpty($OVStorageSystemCSV) -and (Test-path $OVStorageSystemCSV) )
-        {
-            Create-OVStorageSystem -OVStorageSystemCSV $OVStorageSystemCSV -OVFCNetworksCSV $OVFCNetworksCSV
-            $OVFCNetworksCSV = ""
-        }
-
-    if ( ! [string]::IsNullOrEmpty($OVFCNetworksCSV) -and (Test-path $OVFCNetworksCSV) )
-        {
-            Create-OVFCNetworks -OVFCNetworksCSV $OVFCNetworksCSV 
-        }  
-             
-         
-    if ( ! [string]::IsNullOrEmpty($OVSanManagerCSV) -and (Test-path $OVSanManagerCSV) )
-        {
-        Create-OVSanManager -OVSanManagerCSV $OVSanManagerCSV 
-        }
-
-    if ( ! [string]::IsNullOrEmpty($OVStorageVolumeTemplateCSV) -and (Test-path $OVStorageVolumeTemplateCSV) )
-        {
-        Create-OVStorageVolumeTemplate -OVStorageVolumeTemplateCSV $OVStorageVolumeTemplateCSV
-        }
-
-    if ( ! [string]::IsNullOrEmpty($OVStorageVolumeCSV) -and (Test-path $OVStorageVolumeCSV) )
-        {
-        Create-OVStorageVolume -OVStorageVolumeCSV $OVStorageVolumeCSV -OVStorageVolumeTemplateCSV $OVStorageVolumeTemplateCSV 
-        }
-
-    if ( ! [string]::IsNullOrEmpty($OVAddressPoolCSV) -and (Test-path $OVAddressPoolCSV) )
-        {
-        Create-OVAddressPool -OVAddressPoolCSV $OVAddressPoolCSV 
-        }  
-
-    if ( ! [string]::IsNullOrEmpty($OVOSDeploymentCSV ) -and (Test-path $OVOSDeploymentCSV ) )
-        {
-        Create-OVDeploymentServer -OVOSDeploymentCSV $OVOSDeploymentCSV 
-        } 
-
-    if ( ! [string]::IsNullOrEmpty($OVProfileSANStorageCSV) -and (Test-path $OVProfileSANStorageCSV) )
-    {
-      
-        #Create-OVProfileSANStorage -ProfileSANStorageCSV $OVProfileSANStorageCSV -profileName 'Encl2-Bay12 Profile'
-    }
-
-    if ( ! [string]::IsNullOrEmpty($OVProfileLOCALStorageCSV) -and (Test-path $OVProfileLOCALStorageCSV) )
-    {
-        #Create-OVProfileLOCALStorage -ProfileLOCALStorageCSV $OVProfileLOCALStorageCSV -profileName 'Encl2-Bay12 Profile'
-    }
-    
-    if ( $OVProfileConnectionCSV -and (Test-path $OVProfileConnectionCSV) )
-    {
-        #Create-OVProfileConnection -ProfileConnectionCSV $OVProfileConnectionCSV -profileName 'Template-BL460c-Gen8-1-Enc1'
-    }
-
-
-    
-
-
-
-    # Clean up
-    write-host -foreground Cyan "-----------------------------------------"
-    write-host -foreground Cyan " Disconnect the OneView appliance........"
-    write-host -foreground Cyan "-----------------------------------------"
-    Disconnect-HPOVMgmt
