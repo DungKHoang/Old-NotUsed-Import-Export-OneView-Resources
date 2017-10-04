@@ -485,7 +485,7 @@ Param   ([string] $ListNetworkSet, [string] $TypicalBandwidth, [string] $MaxBand
             {
                 $ThisNetworkSet = get-HPOVNetworkSet -Name $NetworkSetName -ErrorAction stop
             }
-            Catch [HPOneView.NetworkResourceException]
+            Catch
             {
                 $ThisNetworkSet        = $NULL
             }
@@ -787,6 +787,8 @@ Param ([string]$OVFCNetworksCSV ="D:\Oneview Scripts\OV-FCNetworks.csv")
     {
 
         $NetworkName     = $N.NetworkName
+            if ($NEtworkName -like '* *')    # Contains spaces
+            { $NetworkName = '"' + $NetworkName + '"'}
         $Description     = $N.Description
         $FabricType      = $N.FabricType
         $Type            = $N.Type
@@ -3635,12 +3637,15 @@ Param ([string]$OVSANManagerCSV ="D:\Oneview Scripts\OV-SANManager.csv")
                     {
                         $Port          = $N.Port
                         
+                        
                         $AuthLevel     = $N.snmpAuthLevel
                         $AuthProtocol  = $N.snmpAuthProtocol
                         $AuthPassword  = $N.snmpAuthPassword
                         $AuthUserName  = $N.snmpAuthUsername
 
                         $PrivProtocol  = $N.snmpPrivProtocol
+                        if ($PrivProtocol -eq 'aes')
+                            { $PrivProtocol = 'aes-128'}
                         $PrivPassword  = $N.snmpPrivPassword
 
                         if ($AuthLevel -eq "AuthOnly" -and 
@@ -3667,8 +3672,10 @@ Param ([string]$OVSANManagerCSV ="D:\Oneview Scripts\OV-SANManager.csv")
                         write-host -foreground Cyan "Adding SAN MAnager $SANName - Type: $Type ...."
                         write-host -foreground Cyan "-------------------------------------------------------------"
 
-                        $AuthCmds = " -snmpAuthLevel $AuthLevel -snmpUsername $AuthUsername -snmpAuthProtocol $AuthProtocol -snmpAuthPassword $AuthPassword -snmpPrivProtocol $PrivProtocol "
-                        $PrivCmds = "  -snmpPrivPassword `$PrivPassword  "
+                        $AuthCmds = " -snmpAuthLevel $AuthLevel -snmpUsername $AuthUsername -snmpAuthProtocol $AuthProtocol -snmpAuthPassword $AuthPassword "
+                        $PrivCmds = ""
+                        if ($PrivProtocol)
+                            { $PrivCmds = " -snmpPrivProtocol $PrivProtocol  -snmpPrivPassword `$PrivPassword  " }
 
 
                         $Cmds = " Add-HPOVSANManager -hostname $SANName -Type $Type -port $port " + $AuthCmds 
@@ -4316,7 +4323,11 @@ Function Create-OVDeploymentServer ([string]$OVOSDeploymentCSV)
             
             write-host "`n Connect to the OneView appliance..."
             $global:ApplianceConnection = Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword -AuthLoginDomain $OVAuthDomain
-
+        }
+        catch 
+        {
+            write-host -foreground Yellow " Cannot connect to OneView.... Please check Host name, username and password for OneView.  "
+        }  
             if ( ! [string]::IsNullOrEmpty($OVEthernetNetworksCSV) -and (Test-path $OVEthernetNetworksCSV) )
                 {
                     Create-OVEthernetNetworks -OVEthernetNetworksCSV $OVEthernetNetworksCSV 
@@ -4447,8 +4458,4 @@ Function Create-OVDeploymentServer ([string]$OVOSDeploymentCSV)
             write-host -foreground Cyan "-----------------------------------------"
             Disconnect-HPOVMgmt
 
-        }
-        catch 
-        {
-            write-host -foreground Yellow " Cannot connect to OneView.... Please check Host name, username and password for OneView.  "
-        }
+     

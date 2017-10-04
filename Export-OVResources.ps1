@@ -1939,8 +1939,8 @@ Function Export-OVSANManager([string]$Outfile)
         {
 
             # ------ For HPE and Cisco 
-            'SnmpPort'          { $Port          = $CI.Value}
-            'SnmpUsername'      { $snmpUsername  = $CI.Value}
+            'SnmpPort'          { $Port             = $CI.Value}
+            'SnmpUsername'      { $snmpUsername     = $CI.Value}
             'SnmpAuthLevel'     { 
                                     $v = $CI.Value
 
@@ -1966,6 +1966,10 @@ Function Export-OVSANManager([string]$Outfile)
 
 
         }
+
+        $Password       = if ($Username)        {'***Pwd N/A***'} else {''}
+        $AuthPassword   = if ($snmpUsername)    {'***Pwd N/A***'} else {''}
+        $PrivPassword   = if ($PrivProtocol)    {'***Pwd N/A***'} else {''}
 
         #                 SanManagerName,Type,Username,Password,Port,UseSSL,snmpAuthLevel,snmpAuthProtocol,snmpAuthUsername,snmpAuthPassword,snmpPrivProtocol,snmpPrivPassword
         $ValuesArray  += "$SMName,$SMType,$Username,$Password,$Port,$UseSSL,$AuthLevel,$AuthProtocol,$snmpUsername,$AuthPassword,$PrivProtocol,$PrivPassword" + $CR 
