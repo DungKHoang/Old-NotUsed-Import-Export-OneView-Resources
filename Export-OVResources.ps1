@@ -61,6 +61,8 @@
 ##                           - Export OS Deployment appliance
 ##                           - Export OS Deployment settings in Server Profile and Template
 ##
+##      Oct 2017 - v3.1    - Review SANManager, Storagesystem, volume template and volumes functions based on Al Amin feedback
+##
 ##   Version : 3.101
 ##
 ##   Version : 3.101 - July 2017
@@ -203,7 +205,7 @@
   
 ## -------------------------------------------------------------------------------------------------------------
 
-Param ( [string]$OVApplianceIP="10.254.13.202", 
+Param ( [string]$OVApplianceIP="10.254.13.212", 
         [string]$OVAdminName="Administrator", 
         [string]$OVAdminPassword="P@ssword1",
         [string]$OVAuthDomain = "local",
@@ -286,7 +288,7 @@ $ProfilePSTHeader    = "ServerProfileName,Description,ServerProfileTemplate,Serv
 
 $SANManagerHeader    = "SanManagerName,Type,Username,Password,Port,UseSSL,snmpAuthLevel,snmpAuthProtocol,snmpAuthUsername,snmpAuthPassword,snmpPrivProtocol,snmpPrivPassword"
 
-$StSHeader           = "StorageHostName,StorageAdminName,StorageAdminPassword,StoragePorts,StorageDomainName,StoragePools"
+$StSHeader           = "StorageHostName,StorageFamilyName,StorageAdminName,StorageAdminPassword,StoragePorts,StorageDomainName,StoragePools"
 
 $StVolTemplateHeader = "TemplateName,Description,StoragePool,StorageSystem,Capacity,ProvisionningType,Shared,SnapShotStoragePool"
 
@@ -2002,21 +2004,31 @@ Function Export-OVStorageSystem([string]$Outfile)
     foreach ($StS in $ListofStorageSystems)
     {
 
-        $hostName            = $Sts.Credentials.ip_hostname
+        $hostName            = $Sts.hostname
         $Username            = $Sts.Credentials.username
-        $DomainName          = $Sts.ManagedDomain
         $Password            = '***Pwd N/A***'
+        $family              = $sts.family
 
+        $DomainName          = if ($family -eq 'StoreServ' ) { $Sts.deviceSpecificAttributes.managedDomain } else {''}
+        
         $StoragePorts        = ""                         
-        foreach ($MP in ($Sts.ManagedPorts| sort PortName)) 
+        foreach ($MP in ($Sts.Ports| sort Name)) 
         {
-            $Port           = $MP.PortName + '=' + $MP.ExpectedNetworkName    # Build Port syntax 0:1:2= VSAN10
-            $StoragePorts  += $Port + $SepChar                                # Build StorargePort "0:1:2= VSAN10|0:1:3= VSAN11"
-
+            if ($family -eq 'StoreServ')
+                { $Thisname    = $MP.actualSanName }
+            else 
+                { $Thisname    = $MP.ExpectedNetworkName  }
+            
+            if ($Thisname)
+            {
+                $Port           = $MP.Name + '=' + $Thisname    # Build Port syntax 0:1:2= VSAN10
+                $StoragePorts  += $Port + $SepChar                                # Build StorargePort "0:1:2= VSAN10|0:1:3= VSAN11"
+            }
         }
 
         $StoragePools       = ""
-        foreach ($SP in $Sts.ManagedPools)
+        $AllStoragePools    = Send-HPOVRequest -uri $Sts.storagePoolsUri
+        foreach ($SP in $AllStoragePools.members)
         {
             $StoragePools += $SP.Name + $SepChar
         }
@@ -2026,8 +2038,8 @@ Function Export-OVStorageSystem([string]$Outfile)
         $StoragePools  = $StoragePools -replace ".{1}$"
 
 
-        #                 StorageHostName,StorageAdminName,StorageAdminPassword,StoragePorts,StorageDomainName,StoragePools
-        $ValuesArray  += "$hostName,$Username,$Password,$StoragePorts,$DomainName,$StoragePools" + $CR 
+        #                 StorageHostName,StorageFamilyName,StorageAdminName,StorageAdminPassword,StoragePorts,StorageDomainName,StoragePools
+        $ValuesArray  += "$hostName,$Family,$Username,$Password,$StoragePorts,$DomainName,$StoragePools" + $CR 
     }
 
     if ($ValuesArray -ne $NULL)
@@ -2061,18 +2073,19 @@ Function Export-OVStorageVolumeTemplate([string]$Outfile)
 
         $SnapSPoolUri    = $Template.SnapShotPoolUri
         $StsUri          = $Template.StorageSystemUri 
-  
+        
 
-        $p               = $Template.Provisioning
+        $p               = $Template.deviceSpecificAttributes
 
             $ProvisionType = if ($p.ProvisionType -eq 'Full') { "Thick"}            else {"Thin"}
             $Shared        = if ($p.Shareable)                { 'Yes'  }            else {'No'}
             $Capacity      = if ($p.Capacity)                 { 1/1GB * $p.Capacity } else { 0 }
 
-            $StpUri        = $p.StoragePoolUri
+            $StpUri          = $p.StoragePoolUri
             $PoolName      = "" 
             if ($StpUri)
             {
+
                 $ThisPool  = Get-HPOVStoragePool | where URI -eq $StpUri
                 if ($ThisPool)
                     { $PoolName = $ThisPool.Name}
@@ -2094,7 +2107,7 @@ Function Export-OVStorageVolumeTemplate([string]$Outfile)
             if ($ThisStorageSystem)
             {
 
-                $StorageSystem = $ThisStorageSystem.credentials.ip_hostname
+                $StorageSystem = $ThisStorageSystem.hostname
             }
         }
         
@@ -2132,7 +2145,8 @@ Function Export-OVStorageVolume([string]$Outfile)
         $StpUri          = $Vol.StoragePoolUri
         $SnapSPoolUri    = $Vol.SnapShotPoolUri
         $StsUri          = $Vol.StorageSystemUri 
-  
+        $VolTemplateUri  = $Vol.volumeTemplateUri
+
         $Shared          = if ($Vol.Shareable)                { 'Yes'  }            else {'No'}
         $ProvisionType   = if ($Vol.ProvisionType -eq 'Full') { "Thick"}            else {"Thin"}
         $Capacity        = if ($Vol.provisionedCapacity)                 { 1/1GB * $Vol.provisionedCapacity } else { 0 }
@@ -2162,11 +2176,12 @@ Function Export-OVStorageVolume([string]$Outfile)
             if ($ThisStorageSystem)
             {
 
-                $StorageSystem = $ThisStorageSystem.credentials.ip_hostname
+                $StorageSystem = $ThisStorageSystem.hostname
             }
         }
 
-        $VolumeTemplate = " **** "
+        $VolumeTemplate = if ($VolTemplateUri) { Get-NamefromUri -uri $VolTemplateUri } else {''}
+        
         
         #                 VolumeName,Description,StoragePool,StorageSystem,VolumeTemplate,Capacity,ProvisionningType,Shared
         $ValuesArray  += "$Name,$Description,$PoolName,$StorageSystem,$VolumeTemplate,$Capacity,$ProvisionType,$Shared" + $CR 

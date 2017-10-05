@@ -94,6 +94,8 @@
 ##                         - Fix subnet attached to network
 ##                         - Add Try{} and catch{} in Connect-HPOVMgmt
 ##
+##      Oct 2017 - v3.1    - Review SANManager, Storagesystem, volume template and volumes functions based on Al Amin feedback
+##
 ##   Version : 3.1
 ##
 ##
@@ -3393,7 +3395,6 @@ Param ( [string]$OVStorageSystemCSV, [string]$OVFCNetworksCSV)
                         if ( -not [string]::IsNullOrEmpty($StorageDomainName))
                         {
                             $DomainParam = " -domain $StorageDomainName" 
-
                         }
                         else
                         {
@@ -3457,17 +3458,28 @@ Param ( [string]$OVStorageSystemCSV, [string]$OVFCNetworksCSV)
                     }
 
 
-           
                     $Cmds= "Add-HPOVStorageSystem -hostname $StorageHostName -username $StorageAdminName  -password $StorageAdminPassword $FamilyParam $DomainParam $PortsParam $VIPSparam "
-          
+              
+                    
+
 
                     write-host -foreground Cyan "-------------------------------------------------------------"
                     write-host -foreground Cyan "Adding storage system $StorageHostName                       "
                     write-host -foreground Cyan "-------------------------------------------------------------"                                
 
-                        
-                    Invoke-Expression $Cmds | Wait-HPOVTaskComplete
-              
+
+                    try 
+                    {
+                         Invoke-Expression $Cmds | Wait-HPOVTaskComplete
+                    }
+                    catch 
+                    {
+                        write-host -foreground YELLOW " Cannot add storage system $StorageHostName. Check credential,connectivity and state of storage system"   
+                    }
+                           
+
+
+
                     #Wait for the storage system to be fully discovered in OneView
                     start-sleep -seconds 60
                     
@@ -3712,7 +3724,7 @@ Function Create-OVStorageVolumeTemplate {
 	Create OVStorageVolumeTemplate in OneView
         
   .EXAMPLE
-    Create-OVStorageVolumeTemplate  -OVStorageVolumeTemplateCSV c:\OVStorageVolumeTemplate.CSV 
+    Create-OVStorageVolumeTemplate  -OVStorageVolumeTemplateCSV c:\OVStorage.CSV 
 
 
   .PARAMETER OVStorageVolumeTemplate
@@ -3821,7 +3833,7 @@ Param ([string]$OVStorageVolumeTemplateCSV ="D:\Oneview Scripts\OVStorageVolumeT
         } #end Storagepool Not NULL
         else
         {
-            write-host -ForegroundColor Yellow "Storage Pool not specified. Skip creating StoragePool"
+            write-host -ForegroundColor Yellow "Storage Pool not specified. Skip creating volumetemplate"
         }
     
 
