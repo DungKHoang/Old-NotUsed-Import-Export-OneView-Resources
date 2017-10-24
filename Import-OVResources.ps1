@@ -95,8 +95,12 @@
 ##                         - Add Try{} and catch{} in Connect-HPOVMgmt
 ##
 ##      Oct 2017 - v3.1    - Review SANManager, Storagesystem, volume template and volumes functions based on Al Amin feedback
+##      Nov 2017 - v3.110   - Review try {} on Connect-HPOVmgmt
 ##
-##   Version : 3.1
+##   Version : 3.110
+##
+##   Version : 3.110 - Nov 2017
+##
 ##
 ##
 ## -------------------------------------------------------------------------------------------------------------
@@ -4330,16 +4334,20 @@ Function Create-OVDeploymentServer ([string]$OVOSDeploymentCSV)
 
         # ---------------- Connect to OneView appliance
         #
-        try 
+        Try 
         {
-            
-            write-host "`n Connect to the OneView appliance..."
-            $global:ApplianceConnection = Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword -AuthLoginDomain $OVAuthDomain
+            write-host -foreground Cyan "$CR Connect to OneView appliance..."
+            $global:ApplianceConnection =  Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain -errorAction stop
+            $connectedState = $true
         }
         catch 
         {
             write-host -foreground Yellow " Cannot connect to OneView.... Please check Host name, username and password for OneView.  "
-        }  
+            $ConnectedState = $false
+        }
+
+        if ($ConnectedState)
+        { 
             if ( ! [string]::IsNullOrEmpty($OVEthernetNetworksCSV) -and (Test-path $OVEthernetNetworksCSV) )
                 {
                     Create-OVEthernetNetworks -OVEthernetNetworksCSV $OVEthernetNetworksCSV 
@@ -4469,5 +4477,5 @@ Function Create-OVDeploymentServer ([string]$OVOSDeploymentCSV)
             write-host -foreground Cyan " Disconnect the OneView appliance........"
             write-host -foreground Cyan "-----------------------------------------"
             Disconnect-HPOVMgmt
-
+        }
      

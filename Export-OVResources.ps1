@@ -63,9 +63,13 @@
 ##
 ##      Oct 2017 - v3.1    - Review SANManager, Storagesystem, volume template and volumes functions based on Al Amin feedback
 ##
-##   Version : 3.101
+##      Nov 2017 - v3.110   - Review try {} on Connect-HPOVmgmt
+##                          - Review $allStoragePools fetch whne using diiferent libraries
+##                          - Review $FWUri on FW Baseline
 ##
-##   Version : 3.101 - July 2017
+##   Version : 3.110
+##
+##   Version : 3.110 - Nov 2017
 ##
 ## Contact : Dung.HoangKhac@hpe.com
 ##
@@ -362,8 +366,17 @@ Function Get-NamefromUri([string]$uri)
 {
     $name = ""
 
-    if (-not [string]::IsNullOrEmpty($Uri))
-        { $name   = (Send-HPOVRequest $Uri).Name }
+    if ($Uri)
+    { 
+        try 
+        {
+            $name   = (Send-HPOVRequest $Uri).Name 
+        }
+        catch
+        {
+            $name = ""
+        }
+    }
 
     return $name
 
@@ -1243,9 +1256,18 @@ Function Export-OVEnclosure([string]$OutFile)
             {
                 $EncFWBaseline      = $EncFWBaseLine.split(',')[0]
                 $uri                = $Enc.fwBaselineUri
-                $FWuri              = if ($uri.Startswith('/')) { send-hpovrequest $uri } else {""}
-                $EncFwIso           = $FWUri.isoFileName
+                
+                
                 $EncFwInstall       = if ($Enc.isFWManaged) {'Yes'} else {'No'}  
+                            
+				try {
+                    $Fwuri          =  send-hpovrequest -uri $uri 
+                    $EncFwIso       = $FWUri.isoFileName
+				}
+				catch {
+                    $FWuri = $EncFwIso = ""
+                    
+				}
             }
             else { $EncFwInstall = 'No' }
    
@@ -2027,12 +2049,24 @@ Function Export-OVStorageSystem([string]$Outfile)
         }
 
         $StoragePools       = ""
-        $AllStoragePools    = Send-HPOVRequest -uri $Sts.storagePoolsUri
-        foreach ($SP in $AllStoragePools.members)
+        $Lib = Get-HPOVVersion 
+        if (($Lib.Major -ge 3) -and ($Lib.Minor -ge 10))
         {
-            $StoragePools += $SP.Name + $SepChar
+            $AllStoragePools    = Send-HPOVRequest -uri $Sts.storagePoolsUri
+            foreach ($SP in $AllStoragePools.members)
+            {
+                $StoragePools += $SP.Name + $SepChar
+            }
         }
-
+        else 
+        {
+            $AllStoragePools     = $sts.ManagedPools
+            foreach ($SP in $AllStoragePools)
+            {
+                $pName        = get-NamefromUri -uri $SP.Uri
+                $StoragePools += $pName + $SepChar
+            }
+        }
         # Remove last sepchar
         $StoragePorts  = $StoragePorts -replace ".{1}$"
         $StoragePools  = $StoragePools -replace ".{1}$"
@@ -2483,9 +2517,18 @@ Function Export-OVOSDEployment ([string]$OutFile)
     
         Try 
         {
-            write-host -foreground Cyan "$CR Connect to the OneView appliance..."
-            $global:ApplianceConnection =  Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain
+            write-host -foreground Cyan "$CR Connect to OneView appliance..."
+            $global:ApplianceConnection =  Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain -errorAction stop
+            $connectedState = $true
+        }
+        catch 
+        {
+            write-host -foreground Yellow " Cannot connect to OneView.... Please check Host name, username and password for OneView.  "
+            $ConnectedState = $false
+        }
 
+        if ($ConnectedState)
+        {
             $OVProfileTemplateConnectionCSV = $OVProfileTemplateLOCALStorageCSV = $OVProfileTemplateSANStorageCSV = ""
 
             if ($All)
@@ -2687,7 +2730,7 @@ Function Export-OVOSDEployment ([string]$OutFile)
 
 
                 write-host -foreground Cyan "$CR Disconnect from the OneView appliance..."
-                Disconnect-HPOVMgmt
+                
 
                 write-host -foreground Cyan "--------------------------------------------------------------"
                 write-host -foreground Cyan "The script does not export credentials of OneView resources. "
@@ -2698,12 +2741,11 @@ Function Export-OVOSDEployment ([string]$OutFile)
                 write-host -foreground Cyan "  - Server.csv"
                 write-host -foreground Cyan "--------------------------------------------------------------"
 
+            Disconnect-HPOVMgmt 
+
 
         }
-        catch 
-        {
-            write-host -foreground Yellow " Cannot connect to OneView.... Please check Host name, username and password for OneView.  "
-        }
+
 
 
 
