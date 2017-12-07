@@ -95,11 +95,17 @@
 ##                         - Add Try{} and catch{} in Connect-HPOVMgmt
 ##
 ##      Oct 2017 - v3.1    - Review SANManager, Storagesystem, volume template and volumes functions based on Al Amin feedback
-##      Nov 2017 - v3.110   - Review try {} on Connect-HPOVmgmt
+##      Nov 2017 - v3.110  - Review try {} on Connect-HPOVmgmt
+##      Nov 2017 - v3.120  - Feedback from customer
+##                              - If DriveTYpe is blank, then DriveType is set to Auto
+##                              - If ControllerID is blank then ControllerID = 'embedded'
+##                              - If $Server not specified then Assignmentype should be " - AssigmentType $assignType"
+##                              - when MAC or WWNN or WWPN are specified, set $UserDefined to $True
+##                              - Hit a defect in POSH when MAC is specified,need to add dummy WWNN in CSV file
 ##
-##   Version : 3.110
+##   Version : 3.120
 ##
-##   Version : 3.110 - Nov 2017
+##   Version : 3.120 - Nov 2017
 ##
 ##
 ##
@@ -635,6 +641,8 @@ Param ([string]$OVEthernetNetworksCSV ="D:\Oneview Scripts\OV-EthernetNetworks.c
     foreach ($N in $ListofNets)
     {
         $NetworkSetL    = $N.NetworkSet
+        if ($NetworkSetL  -like '* *') 
+            { $NetworkSetL =  $DoubleQuote + $NetworkSetL  + $DoubleQuote }
         $NSTBandwidthL  = $N.NSTypicalBandwidth
         $NSMBandwidthL  = $N.NSMaximumBandwidth
 
@@ -646,6 +654,8 @@ Param ([string]$OVEthernetNetworksCSV ="D:\Oneview Scripts\OV-EthernetNetworks.c
 
 
         $NetworkName   = $N.NetworkName
+        if ($NetworkName  -like '* *') 
+            { $NetworkName =  $DoubleQuote + $NetworkName  + $DoubleQuote }   
         $vLanID        = $N.vLanID
         $Type          = if ($N.Type) {$N.Type} else {'Ethernet'} 
         $PBandwidth    = 1000 * $N.TypicalBandwidth
@@ -793,8 +803,8 @@ Param ([string]$OVFCNetworksCSV ="D:\Oneview Scripts\OV-FCNetworks.csv")
     {
 
         $NetworkName     = $N.NetworkName
-            if ($NEtworkName -like '* *')    # Contains spaces
-            { $NetworkName = '"' + $NetworkName + '"'}
+            if ($NetworkName -like '* *')    # Contains spaces
+            { $NetworkName = $DoubleQuote + $NetworkName + $DoubleQuote}
         $Description     = $N.Description
         $FabricType      = $N.FabricType
         $Type            = $N.Type
@@ -945,6 +955,9 @@ $FabricModuleTypes       = @{
     foreach ($L in $ListofLGs)
     {
         $LGName      = $L.LIGName
+        if ($LGName  -like '* *') 
+            { $LGName = $DoubleQuote + $LGName  + $DoubleQuote }
+        
         $FrameCount  = $L.FrameCount
         $ICBaySet    = $L.InterConnectBaySet
         $ConfigType  = $L.InterConnectType
@@ -1205,8 +1218,13 @@ Param ([string]$OVUpLinkSetCSV ="D:\Oneview Scripts\OV-UpLinkSet.csv")
         foreach ($UL in $ListofUpLinks)
         {
             $LGName                   = $UL.LIGName
+            if ($LGName -like '* *' )
+                {$LGName = $DoubleQuote + $LGName + $DoubleQuote}
 
             $UpLinKSetName            = $UL.UpLinkSetName
+            if ($UpLinKSetName  -like '* *' )
+                {$UpLinKSetName = $DoubleQuote + $UpLinKSetName  + $DoubleQuote} 
+
             $UpLinkSetType            = $UL.UpLinkType
          
             $UpLinkSetPorts           = if ($UL.UplinkPorts) { ($UL.UpLinkPorts.Split($SepChar)).Trim() }
@@ -1399,6 +1417,8 @@ Param ( [string]$OVEnclosureGroupCSV ="D:\Oneview Scripts\OV-EnclosureGroup.csv"
         foreach ($EG in $ListofEnclosureGroup)
         {
             $EGName              = $EG.EnclosureGroupName 
+            if ($EGName -like '* *') 
+                { $EGName = $DoubleQuote + $EGName + $DoubleQuote }
             $EGDescription       = $EG.Description
             $EGEnclosureCount    = $EG.Enclosurecount
             $EGipv4Type          = if ($EG.IPv4AddressType) { $EG.IPv4AddressType } else {"DHCP"} 
@@ -1970,7 +1990,10 @@ Function Create-OVProfileConnection {
 
         foreach ($Conn in $ListofConnections)
         {
-            $ServerProfileName  =   $DoubleQuote + $Conn.ServerProfileName.Trim() + $DoubleQuote  
+            $ServerProfileName  =   $Conn.ServerProfileName.Trim()  
+            if ($ServerProfileName -like '* *')
+                { $ServerProfileName  =   $DoubleQuote + $ServerProfileName.Trim() + $DoubleQuote  }
+
             if ( $ServerProfileName -eq $ProfileName)
             {             
                 $ConnName           = $Conn.ConnectionName
@@ -1979,16 +2002,19 @@ Function Create-OVProfileConnection {
                 $NetworkName        = $Conn.NetworkName
                 $PortID             = $Conn.PortID
                 $RequestedBandWidth = $Conn.RequestedBandWidth
-                $UserDefined        = if ( $Conn.UserDefined -eq ' Yes' ) { $True} else {$false}          
+                $UserDefined        = if ( $Conn.UserDefined -eq 'Yes' ) { $True} else {$false}  
+                $ConnMAC            = $Conn.ConnectionMACAddress
+                $ConnWWNN           = $Conn.ConnectionWWNN
+                $ConnWWPN           = $Conn.ConnectionWWPN
+
+                if ($connMAC -or $connWWNN -or $connWWPN)
+                    { $UserDefined = $True}
+
                 if ($UserDefined)
                 {
-                    $ConnMAC         = $Conn.ConnectionMACAddress
+
                     $MACCmds         = if ($ConnMAC ) { " -mac $ConnMAC "} else { "" }
-
-                    $ConnWWNN        = $Conn.ConnectionWWNN
-                    $WWNNCmds        = if ($ConnWWNN) { " -wwnn $ConnWWN " } else { ""}
-
-                    $ConnWWPN        = $Conn.ConnectionWWPN
+                    $WWNNCmds        = if ($ConnWWNN) { " -wwnn $ConnWWNN " } else { ""}
                     $WWPNCmds        = if ($ConnWWPN) { " -wwpn $ConnWWPN " } else { ""}
 
                     $UserDefinedCmds = " -userDefined $MacCmds $WWNNCmds $WWPNCmds "
@@ -2069,7 +2095,7 @@ Function Create-OVProfileConnection {
 
                         $Cmds  = "New-HPOVProfileConnection -connectionID $ConnID -network `$objNetwork   "
                         $Cmds +=  $PortIDCmds + $RequestBWCmds + $UserDefinedCmds + $BootPriorityCmds + $BootVolumeSourceCmds 
-                    
+
                         $Connection = Invoke-Expression $Cmds 
                         $ConnectionList += $Connection
                     }
@@ -2195,7 +2221,7 @@ $a= @"
         foreach ($LS in $ListofLocalStorage)  
         {
             $EnableLOCALStorage  = if ($LS.EnableLOCALStorage -eq 'Yes') { $True} else {$False}
-            $ControllerID        = $LS.ControllerID
+            $ControllerID        = if ($LS.ControllerID) {$LS>ControllerID} else {'Embedded'}
             $ControllerMode      = $LS.ControllerMode
             $ControlInit         = if ($LS.ControllerInitialize -eq 'Yes') { $True} else {$False}
             $LDisks              = $LS.LogicalDisks
@@ -2215,7 +2241,8 @@ $a= @"
                                         { $False }
 
                     $DriveType       = if ($LS.DriveType)
-                                        { $LS.DriveType.Split($SepChar)[$Index].Trim() }
+                                        { $LS.DriveType.Split($SepChar)[$Index].Trim() } else {'Auto'}
+
 
                     $NumberofDrives  = if ($LS.NumberofDrives)
                     { $LS.NumberofDrives.Split($SepChar)[$Index].Trim() }          # to be checked against maximumDrives
@@ -2268,7 +2295,7 @@ $b=@"
 ##
 ## -------------------------------------------------------------------------------------------------------------
 
-Function Create-OVProfileSANStorage {
+Function SANStorage {
 <#
   .SYNOPSIS
     Create ProfileSANStorage in OneView
@@ -2451,11 +2478,14 @@ Function Create-ProfileorTemplate {
 
             if ($CreateProfile)
             {
-               $ProfileName     = '"' + $SPT.ProfileName.Trim() + '"'       # We use ProfileCSV instead of Template.csv
+               $ProfileName     = $SPT.ProfileName    
+               if ($ProfileName -like '* *')
+                { $ProfileName  =   $DoubleQuote + $ProfileName.Trim() + $DoubleQuote  }
+
                $EncName         = $SPT.Enclosure
                $Bay             = $SPT.EnclosureBay   
                $AssignType      = $SPT.AssignmentType
-               $Server          = $SPT.Server.Trim() -replace '"',''
+               $Server          = $SPT.Server.Trim() -replace $DoubleQuote,''
                $ServerTemplate  = $SPT.ServerTemplate
                $ProfileTemplateName = $ProfileName
                if ($ServerTemplate)
@@ -2656,6 +2686,11 @@ Function Create-ProfileorTemplate {
                         }   # SHTCMds already defined above 
                           
                     } 
+
+                    else 
+                    {
+                        $AssignTypeCmds = " -AssignmentType $AssignType "    
+                    }
                 }
 
 
@@ -2910,6 +2945,7 @@ Function Create-ProfileorTemplate {
                         {
                             write-host -foreground Cyan " Creating profile from Server Template ....."
                             $ProfileCmds += $ServerTemplateToCreateFromCmds 
+                            $ProfileCmds   += $ConnectionsCmds 
 
                         }
                         else
@@ -3100,7 +3136,10 @@ Function Create-OVProfileFROMTemplate {
 
         foreach ($SP in $ListofProfile)
         {
-            $ProfileName     = $SP.ProfileName 
+            $ProfileName     = $SP.ProfileName
+            if ($ProfileName -like '* *')
+                { $ProfileName  =   $DoubleQuote + $ProfileName.Trim() + $DoubleQuote  }
+
             $Description     = $SP.Description 
             $ServerHW        = $SP.Server
             $SPTemplate      = $SP.ServerTemplate
@@ -3765,6 +3804,9 @@ Param ([string]$OVStorageVolumeTemplateCSV ="D:\Oneview Scripts\OVStorageVolumeT
     {
 
         $Name          = $SVT.TemplateName
+        if ($Name -like '* *')
+            { $Name  =   $DoubleQuote + $Name.Trim() + $DoubleQuote  }
+
         $Description   = $SVT.Description
         $StoragePool   = $SVT.StoragePool
         $StsSystem     = $SVT.StorageSystem
@@ -3910,7 +3952,10 @@ Param ([string]$OVStorageVolumeCSV,
 
     foreach ($SV in $ListofStorageVolumes)
     {
-        $VolName       = $SV.VolumeName 
+        $VolName       = $SV.VolumeName
+        if ($VolName -like '* *')
+            { $VolName  =   $DoubleQuote + $VolName.Trim() + $DoubleQuote  }
+
         $Description   = $SV.Description
         $StoragePool   = $SV.StoragePool
         $StsSystem     = $SV.StorageSystem
@@ -4107,6 +4152,9 @@ Function Create-OVAddressPool {
         foreach ($AP in $ListofAddressPool)
         {
             $PoolName      = "'" + $AP.PoolName  + "'"
+            if ($PoolName -like '* *')
+                { $PoolName  =   $DoubleQuote + $PoolName.Trim() + $DoubleQuote  }
+
             $PoolType      = $AP.PoolType
             $RangeType     = $AP.RangeType 
             $StartAddress  = $AP.StartAddress
@@ -4226,9 +4274,12 @@ Function Create-OVDeploymentServer ([string]$OVOSDeploymentCSV)
         foreach ($OS in $ListofOSDeploymentServers)
         {
             $OSDeploymentServerName = $OS.DeploymentServerName
+            if ($OSDeploymentServerName -like '* *')
+                { $OSDeploymentServerName  =   $DoubleQuote + $OSDeploymentServerName.Trim() + $DoubleQuote  }
+
             $OSDescription          = $OS.Description
             $OSMgtNetwork           = $OS.ManagementNetwork
-            $OSImageStreamer        = $OS.ImageStreamerAppliance.Trim('"')
+            $OSImageStreamer        = $OS.ImageStreamerAppliance.Trim($DoubleQuote)
 
             $ListofImageStreamer    = Get-HPOVImageStreamerAppliance | where ClusterUri -eq $NULL | where name -eq $OSImageStreamer 
             $ThisOSDeploymentServer = Get-HPOVOSDeploymentServer | where name -eq $OSDeploymentServerName
