@@ -1,8 +1,11 @@
-# Import and Export OneView resources
+## Import and Export OneView resources
 
 Import-OVResources.ps1 and Export-OVResources.ps1 are PowerShell scripts that leverage HPE OneView PowerShell library and Excel to automate configuration of OneView OVResources
 Import-OVResources.ps1 uses CSV files extracted from the XLSx tabs to provide settings for dieffrent resources.
-Export-OVresources.ps1 queries to OneView to collect settings from OV resoucres and save them in CSV files.
+Export-OVresources.ps1 queries to OneView to collect settings from OV resources and save them in CSV files.
+
+## Credit
+Dave Olker contributes to the development by enabling impor/export of Composer/OV appliance settings
 
 ## Prerequisites
 Both scripts require the latest OneView PowerShell library : https://github.com/HewlettPackard/POSH-HPOneView/releases
