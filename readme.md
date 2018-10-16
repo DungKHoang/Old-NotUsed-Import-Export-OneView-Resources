@@ -20,7 +20,7 @@ You will use CSV files as input for the Import script.
 
 Import-OVResources.ps1 is a PowerShell script that configures OV resources based on CSV files including:
    * Address Pool
-   * Ethernet newtorks
+   * Ethernet networks
    * Network set
    * FC / FCOE networks
    * SAN Manager
@@ -37,24 +37,91 @@ Import-OVResources.ps1 is a PowerShell script that configures OV resources based
    * SAN Storage connections
    * Server Profile Templates
    * Server Profiles
+   * Backup configuration
+   * OS Deployment for Image Streame
+   * OneView License
+   * Firmware bundles
+   * Time & Locale Settings
+   * SMTP Settings
+   * Alert Settings
+   * Scope Settings
+   * Users 
+   * Firmware Bundles
+   * Backup Settings
+   * Remote Support Settings
+   * Proxy settings
+   * LDAP settings
+   * LDAP Groups
 
 ## Syntax
 
-### To create Address Pools
+   * By default the POSH OneView module is HPOneView.410. If you use a different OneView module, use -OneviewModule to specify the library version of POSH, for example -OneViewModule HPOneView.310
+   * By default the login domain to OneView/Composer is set to LOCAL. If you use AD credential, use -OVAuthDomain to specify the Active Directory Domain, for example -OVAuthDomain AD.int
+
+### To import  all configuration
+   You can use the switch -ALL to import all configuration into OneView based on a pre-defined set of CSV that includes:
+   * EthernetNetworks.csv
+   * NetworkSet.csv
+   * FCNetworks.csv
+
+   * LogicalInterConnectGroup.csv
+   * UpLinkSet.csv
+
+   * EnclosureGroup.csv
+   * Enclosure.csv
+   * LogicalEnclosure.csv
+   * DLServers.csv
+
+   * Profiles.csv
+   * ProfileConnection.csv
+   * ProfileLOCALStorage.csv
+   * ProfileSANStorage.csv
+
+   * ProfileTemplate.csv
+   * ProfileTemplateConnection.csv
+   * ProfileTemplateLOCALStorage.csv
+   * ProfileTemplateSANStorage.csv
+
+   * SANManager.csv
+   * StorageSystems.csv
+   * StorageVolumeTemplate.csv
+   * StorageVolume.csv
+
+   * AddressPool.csv
+   * Wwnn.csv
+   * IPAddress.csv
+   * OSDeployment.csv
+
+   * OVLicense.txt
+   * Firmware.csv
+        SPP_2018.06.20180709_for_HPE_Synergy_Z7550-96524.iso"
+   * TimeLocale.csv
+   * SMTP.csv
+   * Alerts.csv
+   * Scopes.csv
+   * Users.csv
+   * FWRepositories.csv
+   * BackupConfigurations.csv
+   * OVRSConfiguration.csv
+   * Proxy.csv
+   * LDAP.csv
+   * LDAPGroups.csv
+
+### To import  Address Pools
 
 ```
     .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVAddressPoolCSV c:\AddressPool.csv
 
 ```
 
-### To create Ethernet networks
+### To import  Ethernet networks
 
 ```
     .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVEthernetNetworksCSV c:\EthernetNetworks.csv
 
 ```
 
-### To create SAN Manager
+### To import  SAN Manager
 
 ```
     .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVSANManagerCSV c:\SANManager.csv
@@ -68,41 +135,41 @@ Import-OVResources.ps1 is a PowerShell script that configures OV resources based
 
 ```
 
-### To create FC networks
+### To import  FC networks
 
 ```
     .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVFCNetworksCSV c:\FCNetworks.csv
 
 ```
 
-### To create Volume Templates
+### To import  Volume Templates
 
 ```
     .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVStorageVolumeTemplateCSV c:\StorageVolumeTemplate.csv
 
 ```
 
-### To create Storage Volume
+### To import  Storage Volume
 
 ```
     .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVStorageVolumeCSV c:\StorageVolume.csv
 
 ```
 
-### To create Logical Interconnect Group
+### To import  Logical Interconnect Group
 
 ```
     .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVLogicalInterconnectGroup c:\LogicalInterconnectGroup.csv
 
 ```
-### To create UplinkSet
+### To import  UplinkSet
 
 ```
     .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVuplinkSetCSV c:\Uplinkset.csv
 
 ```
 
-### To create Enclosure Group
+### To import  Enclosure Group
 
 ```
 .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVEnclosureGroupCSV c:\EnclosureGroup.csv
@@ -126,7 +193,7 @@ Import-OVResources.ps1 is a PowerShell script that configures OV resources based
 ```
 
 
-### To create Server profile Template
+### To import  Server profile Template
 
 ```
 
@@ -134,11 +201,110 @@ Import-OVResources.ps1 is a PowerShell script that configures OV resources based
 
 ```
 
-### To create Server profile
+### To import  Server profile
 
 ```
 
 .\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVProfileCSV c:\Profile.csv -OVProfileLOCALStorageCSV c:\ProfileLOCALStorage.csv -OVProfileSANStorageCSV c:\ProfileSANStorage.csv -OVProfileConnectionCSV c:\ProfileConnection.csv
+
+```
+
+### To import Backup Configurations
+The login credential to the remote backup server needs to included in the CSV file.
+```
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVBackupConfig c:\BackupConfig.csv
+
+```
+
+### To Import Backup Configurations
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVBackupConfig c:\BackupConfig.csv
+
+```
+### To import Firmware Repositories
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVFWReposCSV c:\FirmwareRepositories.csv
+
+```
+
+### To Import Time Locale
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVTimeLocaleCSV c:\TimeLocale.csv
+
+```
+
+### To import Proxy
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVProxyCSV c:\Proxy.csv
+
+```
+### To import SMTP
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVsmtpCSV c:\smtp.csv
+
+```
+### To import LDAP
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVldapCSV c:\ldap.csv
+
+```
+### To import alerts
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVAlertsCSV c:\alerts.csv
+
+```
+
+### To import OSDeployment
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVOSDeploymentCSV c:\OSDeployment.csv
+
+```
+
+### To import LDAPgroups
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVldapgroupsCSV c:\ldapgroups.csv
+
+```
+
+### To import scopes
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVscopesCSV c:\scopes.csv
+
+```
+
+### To import users
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVusersCSV c:\scopes.csv
+
+```
+
+### To Import RemoteSupport Config
+
+```
+
+.\Import-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVRSConfigCSV c:\RSConfig.csv
 
 ```
 
@@ -166,9 +332,28 @@ Export-OVResources.ps1 is a PowerShell script that exports OV resources into CSV
    * SAN Storage connections
    * Server Profile Templates
    * Server Profiles
-   * IP addresses used by Synergy components
-   * WWWNN when there are FC networks in profile
 
+   * IP addresses used by Synergy components
+   * WWWNN when there are FC networks in profile 
+   * OS Deployment for Image Streamer
+   * OneView License
+   * Firmware bundles
+   * Time & Locale Settings
+   * SMTP Settings
+   * Alert Settings
+   * Scope Settings
+   * Users 
+   * Firmware Bundles
+   * Backup Settings
+   * Remote Support Settings
+   * Proxy settings
+   * LDAP settings
+   * LDAP Groups
+
+## Syntax
+
+   * By default the POSH OneView module is HPOneView.410. If you use a different OneView module, use -OneviewModule to specify the library version of POSH, for example -OneViewModule HPOneView.310
+   * By default the login domain to OneView/Composer is set to LOCAL. If you use AD credential, use -OVAuthDomain to specify the Active Directory Domain, for example -OVAuthDomain AD.int
 
 ## Syntax
 
@@ -296,6 +481,99 @@ Export-OVResources.ps1 is a PowerShell script that exports OV resources into CSV
 
 ```
 
+
+### To export Backup Configurations
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVBackupConfig c:\BackupConfig.csv
+
+```
+### To export Firmware Repositories
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVFWReposCSV c:\FirmwareRepositories.csv
+
+```
+
+### To export Time Locale
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVTimeLocaleCSV c:\TimeLocale.csv
+
+```
+
+### To export Proxy
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVProxyCSV c:\Proxy.csv
+
+```
+### To export SMTP
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVsmtpCSV c:\smtp.csv
+
+```
+### To export LDAP
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVldapCSV c:\ldap.csv
+
+```
+
+### To export alerts
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVAlertsCSV c:\alerts.csv
+
+```
+
+### To export OSDeployment
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVOSDeploymentCSV c:\OSDeployment.csv
+
+```
+
+### To export LDAPgroups
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVldapgroupsCSV c:\ldapgroups.csv
+
+```
+
+### To export scopes
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVscopesCSV c:\scopes.csv
+
+```
+
+### To export users
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVusersCSV c:\scopes.csv
+
+```
+
+### To export RemoteSupport Config
+
+```
+
+.\Export-OVResources.ps1 -OVApplianceIP <OV-IP-Address> -OVAdminName <Admin-name> -OVAdminPassword <password> -OVRSConfigCSV c:\RSConfig.csv
+
+```
 
 ## Generate CSV files from Excel file
 
