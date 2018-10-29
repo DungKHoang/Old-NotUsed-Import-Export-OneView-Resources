@@ -4380,24 +4380,23 @@ if (-not (get-module $OneViewModule))
 
 # ---------------- Connect to Synergy Composer
 #
-if ( (-not $OVApplianceIP) -or (-not $OVAdminName))
+if (-not $ConnectedSessions)
 {
+    if ((-not $OVApplianceIP) -or (-not $OVAdminName) -or (-not $OVAdminPassword))
+    {
 	$OVApplianceIP      = Read-Host 'Synergy Composer IP Address'
 	$OVAdminName        = Read-Host 'Administrator Username'
-	$OVAdminPassword    = Read-Host 'Administrator Password' -AsSecureString
-
-    $global:ApplianceConnection = Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain -errorAction stop
-
-    if (-not $ConnectedSessions)
-    {
-        Write-Host "Login to Synergy Composer or OV appliance failed.  Exiting."
-        Exit
-    }
+	$OVAdminPassword    = Read-Host 'Administrator Password' -AsSecureString	 
+    } 
+	
+    $global:ApplianceConnection = Connect-HPOVMgmt -appliance $OVApplianceIP -user $OVAdminName -password $OVAdminPassword  -AuthLoginDomain $OVAuthDomain -errorAction stop	
 }
 
-
-if ($ConnectedSessions)
+if (-not $ConnectedSessions) 
 {
+    Write-Host "Login to Synergy Composer or OV appliance failed.  Exiting."
+    Exit
+} else {
     if ($All)
     {
         $OVEthernetNetworksCSV                  = "EthernetNetworks.csv"
